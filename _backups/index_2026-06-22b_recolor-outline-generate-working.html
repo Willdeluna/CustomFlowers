@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Bloom · Build your bouquet</title>
+<style>
+  :root{
+    --bg:#efe9dd; --bg2:#e3ddcf; --ink:#2f2a22; --muted:#7c7466;
+    --brand:#c4622f; --brand2:#e07a3c; --gold:#c9a24a; --card:#fbf8f1;
+    --line:rgba(60,45,25,.14); --good:#3f7d4f;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
+  #app{display:flex;flex-direction:column;height:100dvh}
+  /* ---- stage ---- */
+  #stage{position:relative;flex:1 1 auto;min-height:46vh;background:
+    radial-gradient(120% 90% at 50% 18%,#fbf7ee 0%,#e9e2d3 60%,#ddd5c4 100%)}
+  #c{display:block;width:100%;height:100%;touch-action:none}
+  #title{position:absolute;top:calc(10px + env(safe-area-inset-top));left:0;right:0;text-align:center;
+    pointer-events:none}
+  #title b{font-style:italic;font-weight:600;font-size:19px;letter-spacing:.3px;color:#574a36}
+  #title span{display:block;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  #spin{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
+    gap:12px;color:var(--muted);font-size:13px;pointer-events:none}
+  #spin.on{display:flex}
+  .ring{width:34px;height:34px;border-radius:50%;border:3px solid rgba(0,0,0,.12);border-top-color:var(--brand);
+    animation:sp 0.9s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #tools{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;display:flex;flex-direction:column;gap:8px;z-index:5}
+  #tools button{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.85);color:#6a6051;
+    font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  #tools button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  #rotBtn.off{background:var(--brand);color:#fff;border-color:var(--brand)}
+  #selBar{display:none;align-items:center;position:absolute;left:50%;bottom:12px;transform:translateX(-50%);gap:6px}
+  #selBar button{border:none;border-radius:20px;font-size:14px;font-weight:600;padding:10px 14px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3);background:#5b6b8a;color:#fff}
+  #delBtn{background:#b8463a}
+  .pvqty input{width:74px;font-size:24px;font-weight:700;text-align:center;border:1px solid var(--line);border-radius:8px;padding:6px 4px}
+  /* ---- controls ---- */
+  #panel{flex:0 0 auto;background:var(--card);border-top:1px solid var(--line);
+    box-shadow:0 -10px 30px rgba(0,0,0,.08);padding:10px 12px calc(8px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:9px;max-height:46vh;overflow:auto}
+  #adjust summary,#picker summary{cursor:pointer;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brand);
+    list-style:none;padding:4px 0;font-weight:600}
+  #adjust summary::-webkit-details-marker,#picker summary::-webkit-details-marker{display:none}
+  #adjust summary::before,#picker summary::before{content:'▸ ';font-size:10px}
+  #adjust[open] summary::before,#picker[open] summary::before{content:'▾ '}
+  #colorBar{display:none;position:absolute;left:50%;bottom:58px;transform:translateX(-50%);gap:7px;
+    background:rgba(255,255,255,.9);padding:8px 12px;border-radius:22px;box-shadow:0 3px 12px rgba(0,0,0,.25)}
+  #colorBar.on{display:flex}
+  .csw{width:28px;height:28px;border-radius:50%;border:2px solid rgba(0,0,0,.15);cursor:pointer;padding:0}
+  .csw:active{transform:scale(.9)}
+  /* flower detail preview */
+  #preview{position:fixed;inset:0;background:rgba(20,16,10,.6);display:none;align-items:center;justify-content:center;z-index:55}
+  #preview.on{display:flex}
+  .pvcard{background:var(--card);border-radius:20px;padding:22px;width:84%;max-width:340px;text-align:center;box-shadow:0 14px 50px rgba(0,0,0,.4)}
+  .pvimg{width:200px;height:200px;border-radius:50%;margin:0 auto 12px;background:#fff;background-size:cover;background-position:center;box-shadow:0 3px 14px rgba(0,0,0,.22)}
+  .pvcard h3{margin:4px 0 2px;font-style:italic}
+  .pvprice{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .pvqty{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:16px}
+  .pvqty button{width:46px;height:46px;border-radius:50%;border:none;background:var(--brand);color:#fff;font-size:24px;cursor:pointer}
+  .pvqty span{font-size:24px;font-weight:700;min-width:30px}
+  #pvClose{border:none;border-radius:12px;background:#eee5d4;color:#6a6051;font-size:15px;font-weight:600;padding:12px 28px;cursor:pointer}
+  .row{display:flex;gap:8px;align-items:center}
+  .lbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 2px 1px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .chip{position:relative;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;border:none;background:none;cursor:pointer;padding:2px}
+  .sw{width:90px;height:90px;border-radius:50%;border:2px solid transparent;box-shadow:0 1px 6px rgba(0,0,0,.22);
+    display:flex;align-items:center;justify-content:center;font-size:34px;background:#fff;background-size:cover;background-position:center;transition:transform .1s,border-color .12s}
+  .chip:active .sw{transform:scale(.92)}
+  .chip.on .sw{border-color:var(--brand)}
+  .chip.on .nm{color:var(--brand);font-weight:600}
+  .nm{font-size:10.5px;color:var(--muted);max-width:62px;text-align:center;line-height:1.1}
+  .chip .tick{position:absolute;top:2px;right:8px;width:20px;height:20px;border-radius:50%;
+    background:var(--brand);color:#fff;font-size:12px;display:none;align-items:center;justify-content:center}
+  .chip.on .tick{display:flex}
+  .chip .count{position:absolute;top:-2px;right:4px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;
+    background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .chip.has .count{display:flex}
+  .chip .minus{position:absolute;top:-2px;left:4px;width:22px;height:22px;border-radius:50%;
+    background:#8a7a66;color:#fff;font-size:17px;font-weight:700;line-height:1;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .chip.has .minus{display:flex}
+  .nm{max-width:84px}
+  /* size segmented */
+  .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{flex:1;border:none;background:transparent;padding:8px 0;font-size:13px;color:var(--muted);cursor:pointer}
+  .seg button.on{background:var(--brand);color:#fff;font-weight:600}
+  /* generate + price bar */
+  #gen{flex:1;border:none;border-radius:13px;background:linear-gradient(180deg,var(--brand2),var(--brand));
+    color:#fff;font-size:16px;font-weight:700;padding:14px;cursor:pointer;letter-spacing:.3px;
+    box-shadow:0 4px 14px rgba(196,98,47,.35);display:flex;align-items:center;justify-content:center;gap:8px}
+  #gen:active{transform:translateY(1px)}
+  #price{flex:0 0 auto;text-align:right;min-width:96px}
+  #price .amt{font-size:22px;font-weight:700;color:var(--ink);line-height:1}
+  #price .sub{font-size:10px;color:var(--muted)}
+  #reserve{width:100%;border:none;border-radius:13px;background:#26331f;color:#f2ead7;font-size:15px;font-weight:600;
+    padding:13px;cursor:pointer}
+  #reserve:active{transform:translateY(1px)}
+  /* order modal */
+  #ord{position:fixed;inset:0;background:rgba(20,16,10,.55);display:none;align-items:flex-end;z-index:50}
+  #ord.on{display:flex}
+  .sheet{background:var(--card);width:100%;border-radius:18px 18px 0 0;padding:18px 18px calc(20px + env(safe-area-inset-bottom));
+    box-shadow:0 -10px 40px rgba(0,0,0,.3);animation:up .22s ease}
+  @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+  .sheet h3{margin:0 0 10px;font-style:italic}
+  .lineitem{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .lineitem.total{border:none;font-weight:700;font-size:17px;padding-top:10px}
+  .sheet input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font-size:15px;margin-top:10px}
+  .sheet .acts{display:flex;gap:8px;margin-top:14px}
+  .sheet .acts button{flex:1;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:600;cursor:pointer}
+  #ordCancel{background:#eee5d4;color:#6a6051}
+  #ordPlace{background:var(--good);color:#fff}
+  #done{text-align:center;padding:8px 0}
+  #done .big{font-size:40px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="title"><b>Build your bouquet</b><span>tap &middot; generate &middot; reserve</span></div>
+    <div id="spin"><div class="ring"></div><div id="spinTxt">Gathering flowers&hellip;</div></div>
+    <div id="tools">
+      <button id="rotBtn" title="Stop / start the spin">&#10227;</button>
+      <button id="cvBtn" title="Set the converge point">&#9673;</button>
+      <button id="cutBtn" title="Scissors — trim pokes">&#9986;</button>
+      <button id="resetTool" title="Reset converge point &amp; trims">&#8635;</button>
+    </div>
+    <div id="colorBar"></div>
+    <div id="selBar">
+      <button id="leftBtn" title="Left">◀</button><button id="upBtn" title="Raise">⬆</button><button id="downBtn" title="Lower">⬇</button><button id="rightBtn" title="Right">▶</button>
+      <button id="fwdBtn" title="Forward">Front</button><button id="backBtn" title="Back">Back</button>
+      <button id="delBtn" title="Remove">🗑</button>
+    </div>
+  </div>
+  <div id="panel">
+    <details id="picker" open>
+      <summary>Flowers &amp; wrapper</summary>
+      <div style="margin-top:6px">
+        <div class="lbl">Wrapper</div>
+        <div class="chips" id="wraps"></div>
+      </div>
+      <div>
+        <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Tap to add flowers</span>
+          <button id="clearBtn" style="border:none;background:none;color:var(--brand);font-size:11px;letter-spacing:.5px;cursor:pointer;text-transform:uppercase">Clear</button>
+        </div>
+        <div class="chips" id="flowers"></div>
+      </div>
+    </details>
+    <div>
+      <div class="lbl">One-click bouquet</div>
+      <div class="seg" id="presets">
+        <button data-n="12">Dozen</button>
+        <button data-n="24">2 Dozen</button>
+        <button data-n="50">50 Roses</button>
+      </div>
+    </div>
+    <details id="adjust">
+      <summary>Adjust look</summary>
+      <div class="row" style="gap:14px;margin-top:6px">
+        <label style="flex:1"><div class="lbl">Bloom size</div><input type="range" id="bsize" min="0.6" max="1.8" step="0.02" value="1" style="width:100%;accent-color:var(--brand)"></label>
+        <label style="flex:1"><div class="lbl">Sit in wrapper</div><input type="range" id="blift" min="-1.1" max="1.2" step="0.02" value="0" style="width:100%;accent-color:var(--brand)"></label>
+      </div>
+      <div class="row" style="gap:14px">
+        <label style="flex:1"><div class="lbl">Bunch angle</div><input type="range" id="bunch" min="0" max="1.5" step="0.02" value="0.9" style="width:100%;accent-color:var(--brand)"></label>
+        <label style="flex:1"><div class="lbl">Stem length</div><input type="range" id="stemlen" min="0.6" max="2" step="0.02" value="1" style="width:100%;accent-color:var(--brand)"></label>
+      </div>
+      <label style="display:block"><div class="lbl">Trim past wrapper &nbsp;<span style="opacity:.6;font-size:9px">(right = trim more spill)</span></div><input type="range" id="trim" min="0" max="1" step="0.02" value="0.6" style="width:100%;accent-color:var(--brand)"></label>
+    </details>
+    <div class="row">
+      <button id="gen">&#10022; Generate</button>
+      <div id="price"><div class="amt" id="amt">$0</div><div class="sub" id="cnt">0 stems</div></div>
+    </div>
+    <button id="reserve">Reserve this bouquet</button>
+  </div>
+</div>
+
+<div id="ord">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div id="preview"><div class="pvcard" id="pvcard"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/meshopt_decoder.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/DRACOLoader.js"></script>
+<script>
+/* ============================================================
+   Bloom - customer bouquet maker (MVP)
+   Loads the florist's wrappers + stemless flower heads from the CDN,
+   arranges a dome of heads in the wrapper opening, prices it, reserves it.
+   ============================================================ */
+const CDN='https://cdn.jsdelivr.net/gh/Willdeluna/Junkos_Flowers3@main/';
+const cdn=f=>CDN+encodeURI(f);        // florist's published library
+const local=f=>encodeURI(f);          // a .glb dropped in this folder (served over http)
+
+const WRAPPERS=[
+  {id:'natural', name:'Kraft',  src:cdn('wrappers/Wrapper_Bouquet.glb'),      price:6, dot:'#cdb18b'},
+  {id:'pink',    name:'Pink',   src:cdn('wrappers/Wrapper_Bouquet_Pink.glb'), price:7, dot:'#e7b9c4'},
+  {id:'white',   name:'White',  src:cdn('wrappers/Wrapper_White_Bouquet.glb'),price:7, dot:'#f3efe7'},
+];
+// Full flower+stem GLBs (stem vs. head is auto-detected at load; stems get clipped at the wrapper line).
+const FLOWERS=[
+  {id:'redrose',  name:'Red Rose',      src:local('Red Rose.glb'),        price:4, dot:'#b6303a', filler:false},
+  {id:'smallrose',name:'Small Rose',    src:local('Small Rose.glb'),      price:3, dot:'#d4536a', filler:false},
+  {id:'whiterose',name:'White Rose',    src:local('White Rose small.glb'),price:3, dot:'#efe9df', filler:false},
+  {id:'hydrangea',name:'Blue Hydrangea',src:local('blue hydrangea 2.glb'),price:5, dot:'#6f8fc4', filler:false},
+  {id:'baby',     name:"Baby's Breath", src:local('Babies Breathe.glb'),  price:2, dot:'#f3f3ee', filler:true},
+];
+const SIZES={S:{n:8,label:'Small'}, M:{n:13,label:'Medium'}, L:{n:20,label:'Large'}};
+
+const state={ wrapper:'natural', count:15, bloomSize:1, bloomLift:0, bunch:0.9, stemLen:1, trim:0.6, gather:null, cuts:[], mode:'select', stems:[] };
+function saveState(){ try{ localStorage.setItem('bloom_save',JSON.stringify({wrapper:state.wrapper,count:state.count,bloomSize:state.bloomSize,bloomLift:state.bloomLift,bunch:state.bunch,stemLen:state.stemLen,trim:state.trim,gather:state.gather,cuts:state.cuts,stems:state.stems})); }catch(e){} }
+const history=[];
+function pushHistory(){ try{ history.push(JSON.stringify(state.stems)); if(history.length>60)history.shift(); }catch(e){} }
+function undo(){ if(!history.length)return; try{ state.stems=JSON.parse(history.pop()); }catch(e){} selectedUid=null; showSel(); updatePrice(); updateCounts(); rebuild(); saveState(); }
+function loadState(){ try{ const s=JSON.parse(localStorage.getItem('bloom_save')||'null'); if(s&&Array.isArray(s.stems)){ Object.assign(state,s); if(!Array.isArray(state.cuts))state.cuts=[]; state.mode='select'; return true; } }catch(e){} return false; }
+const TAU=Math.PI*2, GOLD=Math.PI*(3-Math.sqrt(5));
+const rand=n=>(Math.random()*n)|0;
+const MAX_STEMS=42;
+let uidCounter=1, selectedUid=null;
+function makeStem(id){ return {uid:uidCounter++, id, spin:Math.random()*TAU, scale:0.85+Math.random()*0.3, jy:(Math.random()-0.5)*0.12, jphi:Math.random()*0.5}; }
+function afterChange(){ updatePrice(); updateCounts(); rebuild(); saveState(); }
+
+/* ---------------- three.js scene ---------------- */
+let renderer,scene,camera,controls,bouquetGroup,wrapperNode,flowerClip,flowerNodes=[],ray,ndc,depthRT,backDepthMat,selRing=null,selT=0,selRT,olScene,olCam,olMat,selectedNode=null;
+const modelCache={};   // src -> Promise<Object3D>
+const typeCache={};    // src -> 'stem' | 'head'
+const thumbData={};    // id -> dataURL (for the enlarged preview)
+
+function initThree(){
+  const canvas=document.getElementById('c');
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.04;
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(38,1,0.1,100);
+  camera.position.set(0,2.7,6.2);
+  controls=new THREE.OrbitControls(camera,canvas);
+  controls.enableDamping=true; controls.dampingFactor=0.08;
+  controls.enablePan=false; controls.minDistance=3.5; controls.maxDistance=9;
+  controls.minPolarAngle=0.5; controls.maxPolarAngle=1.62; controls.target.set(0,2.5,0);
+  controls.autoRotate=false; controls.autoRotateSpeed=0.6;   // face forward, no spin by default
+  // lights - soft studio
+  scene.add(new THREE.HemisphereLight(0xfff6e6,0x6b6452,0.95));
+  const key=new THREE.DirectionalLight(0xffffff,1.05); key.position.set(3.5,6,4); scene.add(key);
+  const rim=new THREE.DirectionalLight(0xffe8cf,0.5); rim.position.set(-4,3,-3); scene.add(rim);
+  bouquetGroup=new THREE.Group(); scene.add(bouquetGroup);
+  // tap-to-select (distinguish a tap from an orbit drag by movement)
+  ray=new THREE.Raycaster(); ndc=new THREE.Vector2();
+  let dx=0,dy=0,dt=0;
+  canvas.addEventListener('pointerdown',e=>{ dx=e.clientX; dy=e.clientY; dt=Date.now(); });
+  canvas.addEventListener('pointerup',e=>{ if(Math.hypot(e.clientX-dx,e.clientY-dy)<8 && Date.now()-dt<500) pickAt(e.clientX,e.clientY); });
+  resize(); addEventListener('resize',resize);
+  // SELECTION OUTLINE: render the selected flower's silhouette (on layer 1, cage-cut) to selRT,
+  // then draw a constant-width white border around it as a screen overlay (the sample1 sticker look).
+  selRT=new THREE.WebGLRenderTarget(2,2);
+  olCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1); olScene=new THREE.Scene();
+  olMat=new THREE.ShaderMaterial({ transparent:true, depthTest:false, depthWrite:false,
+    uniforms:{ uTex:{value:null}, uTexel:{value:new THREE.Vector2(0.001,0.001)}, uR:{value:9.0}, uColor:{value:new THREE.Color(0xffffff)} },
+    vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+    fragmentShader:'varying vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; uniform float uR; uniform vec3 uColor;\n'+
+      'void main(){ float a=texture2D(uTex,vUv).a; if(a>0.5) discard; float m=0.0; for(int i=0;i<24;i++){ float an=float(i)/24.0*6.2831853; vec2 o=vec2(cos(an),sin(an))*uR*uTexel; m=max(m, texture2D(uTex, vUv+o).a); } if(m<0.5) discard; gl_FragColor=vec4(uColor,1.0); }' });
+  olScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), olMat));
+  (function loop(){ requestAnimationFrame(loop); controls.update();
+    renderer.render(scene,camera);
+    if(selectedNode){
+      const w=renderer.domElement.width, h=renderer.domElement.height;
+      if(selRT.width!==w||selRT.height!==h)selRT.setSize(w,h);
+      const pc=new THREE.Color(); renderer.getClearColor(pc); const pa=renderer.getClearAlpha();
+      camera.layers.set(1);
+      renderer.setRenderTarget(selRT); renderer.setClearColor(0x000000,0); renderer.clear(); renderer.render(scene,camera); renderer.setRenderTarget(null);
+      camera.layers.set(0); renderer.setClearColor(pc,pa);
+      olMat.uniforms.uTex.value=selRT.texture; olMat.uniforms.uTexel.value.set(1/w,1/h);
+      renderer.autoClear=false; renderer.render(olScene,olCam); renderer.autoClear=true;
+    }
+  })();
+}
+function resize(){
+  const s=document.getElementById('stage');
+  const w=s.clientWidth,h=s.clientHeight;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+function gltf(){
+  const l=new THREE.GLTFLoader();
+  if(typeof MeshoptDecoder!=='undefined'&&l.setMeshoptDecoder)l.setMeshoptDecoder(MeshoptDecoder);
+  try{ const d=new THREE.DRACOLoader(); d.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/draco/'); l.setDRACOLoader(d); }catch(e){}
+  return l;
+}
+function loadModel(src){
+  if(modelCache[src])return modelCache[src];
+  modelCache[src]=new Promise((res,rej)=>{
+    gltf().load(src,g=>res(g.scene||g.scenes[0]),undefined,e=>rej(e));
+  });
+  return modelCache[src];
+}
+// tall model (stem+leaves) vs compact bloom head
+function classify(obj){
+  obj.updateMatrixWorld(true);
+  const s=new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+  return (s.y>1.4*Math.max(s.x,s.z))?'stem':'head';
+}
+// clip every mesh in a flower to the wrapper line so nothing pokes through the paper
+// ---- cone mask (Junko3 approach): discard flower pixels that fall OUTSIDE the paper cone below the rim.
+// Blooms above the rim are untouched (no flat slice); side/back pokes vanish; the opaque paper hides the rest.
+const CUT_MAX=16;   // (kept for the legacy scissor tool; the sculpted deleter below does the real work)
+// ===== SCULPTED DELETER CAGE (baked from the Wrapper Lab) ==================================
+// A grid of NH rings × NA spokes defines a radius field + a sculptable per-angle rim. Any flower
+// fragment that sits OUTSIDE the cage AND below the rim is discarded. Rotates with the bouquet,
+// stays invisible. Edit it in lab.html, Export, and paste the JSON over DELETER below.
+const NH=6, NA=8;
+// ONE sculpted cage PER WRAPPER (each wrapper's opening is shaped differently).
+const WRAP_IDS=['natural','pink','white'];
+function defaultCage(){ const grid=[],nodeY=[],open=[]; for(let h=0;h<NH;h++)for(let a=0;a<NA;a++){ grid.push(0.5*(0.4+1.0*(h/(NH-1)))); nodeY.push(h/(NH-1)); open.push(0); } return {grid,nodeY,open,rimMul:1}; }
+const SCULPT_NATURAL={
+  grid:[0.3153,0.3153,0.3153,0.3153,0.3153,0.3153,0.3153,0.3153,
+        0.2196,0.2196,0.2196,0.2196,0.2196,0.2196,0.2196,0.2196,
+        0.3781,0.3781,0.3781,0.3781,0.3781,0.3781,0.3781,0.3781,
+        0.4727,0.4727,0.4727,0.4727,0.3527,0.4727,0.4727,0.4727,
+        0.4992,0.6192,0.4992,0.4992,0.4992,0.4992,0.4992,0.7392,
+        0.3423,0.7023,0.5823,0.5823,0.5823,0.5823,0.5600,0.7023],
+  nodeY:[0,0,0,0,0,0,0,0,
+         0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,
+         0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,
+         0.45,0.6,0.6,0.6,0.6,0.6,0.6,0.6,
+         0.5,0.7,0.7,0.7,0.7,0.7,0.7,0.7,
+         0.55,0.75,0.75,0.85,1,0.9,0.79,0.75],
+  open:[0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0],
+  rimMul:1
+};
+const DELETERS={ natural:SCULPT_NATURAL, pink:defaultCage(), white:defaultCage() };
+// per-wrapper overrides from the lab's saves on this machine (key: lab_deleter_<wrapperId>)
+WRAP_IDS.forEach(id=>{ try{ const _s=JSON.parse(localStorage.getItem('lab_deleter_'+id)||'null'); if(_s&&_s.NH===NH&&_s.NA===NA&&_s.grid&&_s.grid.length===NH*NA){ DELETERS[id]={grid:_s.grid,nodeY:_s.nodeY,open:_s.open||new Array(NH*NA).fill(0),rimMul:_s.rimMul||1}; } }catch(e){} });
+// back-compat: the old single 'lab_deleter' key → Kraft/natural
+try{ const _s=JSON.parse(localStorage.getItem('lab_deleter')||'null'); if(_s&&_s.NH===NH&&_s.grid&&_s.grid.length===NH*NA && !localStorage.getItem('lab_deleter_natural')){ DELETERS.natural={grid:_s.grid,nodeY:_s.nodeY,open:_s.open||new Array(NH*NA).fill(0),rimMul:_s.rimMul||1}; } }catch(e){}
+const SU={ uRimY:{value:1e9}, uBaseY:{value:0}, uGrid:{value:SCULPT_NATURAL.grid.slice()}, uNodeY:{value:SCULPT_NATURAL.nodeY.slice()}, uOpen:{value:SCULPT_NATURAL.open.slice()} };
+function setCage(id){ const c=DELETERS[id]||DELETERS.natural; for(let i=0;i<NH*NA;i++){ SU.uGrid.value[i]=c.grid[i]; SU.uNodeY.value[i]=c.nodeY[i]; SU.uOpen.value[i]=(c.open&&c.open[i])||0; } return c; }
+const FN='float delR(vec3 wp, out float ceilTT){ float tt=clamp((wp.y-uBaseY)/max(uRimY-uBaseY,1e-4),0.0,1.0);'+
+  ' float ang=atan(wp.z,wp.x); float af=ang*0.15915494; af=(af-floor(af))*float('+NA+');'+
+  ' float r=0.0; float cc=0.0; float wsum=0.0;'+
+  ' for(int a=0;a<'+NA+';a++){ float dd=abs(float(a)-af); dd=min(dd,float('+NA+')-dd); float aw=max(0.0,1.0-dd); if(aw<=0.0){ continue; }'+
+  '   cc+=uNodeY['+(NH-1)+'*'+NA+'+a]*aw;'+
+  '   float gb=uGrid[a]; if(uOpen[a]>0.5){gb=50.0;} float sr=gb;'+
+  '   for(int h=0;h<'+(NH-1)+';h++){ float y0=uNodeY[h*'+NA+'+a]; float y1=uNodeY[(h+1)*'+NA+'+a];'+
+  '     float g0=uGrid[h*'+NA+'+a]; if(uOpen[h*'+NA+'+a]>0.5){g0=50.0;} float g1=uGrid[(h+1)*'+NA+'+a]; if(uOpen[(h+1)*'+NA+'+a]>0.5){g1=50.0;}'+
+  '     if(tt>y0 && tt<=y1){ float f=(tt-y0)/max(y1-y0,1e-4); sr=mix(g0,g1,f); } if(tt>y1 && h=='+(NH-2)+'){ sr=g1; } }'+
+  '   r+=sr*aw; wsum+=aw; }'+
+  ' ceilTT=(wsum>0.0)?cc/wsum:1.0; return (wsum>0.0)?r/wsum:50.0; }';
+const DECL='varying vec3 vWp;\nuniform float uRimY;uniform float uBaseY;uniform float uGrid['+(NH*NA)+'];uniform float uNodeY['+(NH*NA)+'];uniform float uOpen['+(NH*NA)+'];\n'+FN+'\n';
+// deleter cage + ACCURATE hue recolor (ported from Junko3): replace the hue, keep luminance/shading,
+// and auto-skip green pixels so leaves stay green. Live via per-material uniforms (no clone-to-array, no recompile on colour change).
+function maskCompileImpl(shader, mat){
+  shader.uniforms.uRimY=SU.uRimY; shader.uniforms.uBaseY=SU.uBaseY; shader.uniforms.uGrid=SU.uGrid; shader.uniforms.uNodeY=SU.uNodeY; shader.uniforms.uOpen=SU.uOpen;
+  const ud=(mat&&mat.userData)||{};
+  shader.uniforms.uHueOn={value:ud.hueOn?1.0:0.0};
+  shader.uniforms.uHueTarget={value:new THREE.Color(ud.hueTarget||0xffffff)};
+  shader.uniforms.uHueAmt={value:(ud.hueAmt!=null?ud.hueAmt:0.85)};
+  if(mat){ mat.userData=mat.userData||{}; mat.userData.hueUniforms=shader.uniforms; }   // store for live updates
+  shader.vertexShader='varying vec3 vWp;\n'+shader.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n  vWp=(modelMatrix*vec4(transformed,1.0)).xyz;');
+  shader.fragmentShader=
+    'uniform float uHueOn;uniform vec3 uHueTarget;uniform float uHueAmt;\n'+
+    'vec3 fdRgb2hsv(vec3 c){ vec4 K=vec4(0.0,-0.3333333,0.6666667,-1.0); vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g)); vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r)); float d=q.x-min(q.w,q.y); float e=1.0e-10; return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)), d/(q.x+e), q.x); }\n'+
+    'vec3 fdHsv2rgb(vec3 c){ vec4 K=vec4(1.0,0.6666667,0.3333333,3.0); vec3 p=abs(fract(c.xxx+K.xyz)*6.0-K.www); return c.z*mix(K.xxx,clamp(p-K.xxx,0.0,1.0),c.y); }\n'+
+    DECL+shader.fragmentShader
+    .replace('#include <color_fragment>',
+      '#include <color_fragment>\n  if(uHueOn>0.5){ vec3 _hs=fdRgb2hsv(diffuseColor.rgb); float _hd=_hs.x*360.0; bool _grn=(_hd>70.0 && _hd<175.0 && _hs.y>0.18); if(!_grn){ vec3 _ht=fdRgb2hsv(uHueTarget); _hs.x=_ht.x; _hs.y=mix(_hs.y,_ht.y,clamp(uHueAmt,0.0,1.0)); diffuseColor.rgb=fdHsv2rgb(_hs); } }')
+    .replace('#include <clipping_planes_fragment>',
+      '#include <clipping_planes_fragment>\n  float cl; float cr=delR(vWp,cl); float tt2=clamp((vWp.y-uBaseY)/max(uRimY-uBaseY,1e-4),0.0,1.0); if(tt2<cl && length(vWp.xz)>cr){ discard; }');
+}
+function makeFlowerCompile(mat){ return function(shader){ maskCompileImpl(shader, mat); }; }   // captures the material so recolor uniforms live on it
+function maskCompile(shader){ maskCompileImpl(shader, null); }
+function applyMask(node){
+  node.traverse(o=>{ if(o.isMesh&&o.material){
+    (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(!m)return; if(!m.userData)m.userData={};
+      if(!m.userData._mask){ m.userData._mask=true; m.onBeforeCompile=makeFlowerCompile(m); m.needsUpdate=true; } });
+  }});
+}
+function updateMaskUniforms(){}   // baked cage; the rim height is set per-rebuild from the wrapper
+// yellow glow on the selected flower (clone its materials so only this one glows)
+function glowNode(node){
+  try{ node.traverse(o=>{ if(o.isMesh&&o.material){
+    const was=Array.isArray(o.material);
+    const arr=(was?o.material:[o.material]).map(m=>{ const c=m.clone(); if('emissive' in c){ c.emissive=new THREE.Color(0xffe24a); c.emissiveIntensity=0.7; } c.onBeforeCompile=m.onBeforeCompile; c.userData=Object.assign({},m.userData||{}); c.needsUpdate=true; return c; });
+    o.material=was?arr:arr[0];
+  }}); node.scale.setScalar(1.05); }catch(e){ console.warn('glow failed',e); }
+}
+// recolour one flower ACCURATELY: clone its materials (shares geometry+texture → ~free) and colorize to any hue
+function recolorNode(node,hex){
+  try{ node.traverse(o=>{ if(o.isMesh&&o.material){
+      const was=Array.isArray(o.material);
+      const arr=(was?o.material:[o.material]).map(m=>{ const c=m.clone(); c.userData=Object.assign({},m.userData||{}); c.userData._mask=true; c.userData.hueOn=1; c.userData.hueTarget=hex; c.userData.hueUniforms=null; c.onBeforeCompile=makeFlowerCompile(c); c.needsUpdate=true; return c; });
+      o.material=was?arr:arr[0];
+    }});
+  }catch(e){ console.warn('recolor failed',e); }
+}
+// SELECTION: a white "sticker" silhouette outline that hugs the flower (inflated back-faces in screen space),
+// cut by the same deleter cage so it matches the visible flower exactly.
+function outlineCompile(shader){   // SAFE: only a world-pos varying + the cage discard (no project_vertex override)
+  shader.uniforms.uRimY=SU.uRimY; shader.uniforms.uBaseY=SU.uBaseY; shader.uniforms.uGrid=SU.uGrid; shader.uniforms.uNodeY=SU.uNodeY; shader.uniforms.uOpen=SU.uOpen;
+  shader.vertexShader='varying vec3 vWp;\n'+shader.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n  vWp=(modelMatrix*vec4(transformed,1.0)).xyz;');
+  shader.fragmentShader=DECL+shader.fragmentShader.replace('#include <clipping_planes_fragment>',
+    '#include <clipping_planes_fragment>\n  float cl; float cr=delR(vWp,cl); float tt2=clamp((vWp.y-uBaseY)/max(uRimY-uBaseY,1e-4),0.0,1.0); if(tt2<cl && length(vWp.xz)>cr){ discard; }');
+}
+// scaled-hull outline: a white copy of the flower inflated ~6% about its centre, back-faces only → a sticker border
+function makeOutline(node){
+  const box=new THREE.Box3().setFromObject(node), c=box.getCenter(new THREE.Vector3());
+  const clone=node.clone(true);
+  clone.traverse(o=>{ if(o.isMesh){ const m=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.BackSide}); m.onBeforeCompile=outlineCompile; o.material=m; o.userData={}; o.renderOrder=-1; } });
+  const wrap=new THREE.Group(); wrap.position.copy(c); clone.position.sub(c); wrap.add(clone); wrap.scale.setScalar(1.06);
+  return wrap;
+}
+// tap (not drag) a flower to select it; tap empty space to deselect
+function pickAt(cx,cy){
+  const r=renderer.domElement.getBoundingClientRect();
+  ndc.x=((cx-r.left)/r.width)*2-1; ndc.y=-((cy-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  if(state.mode==='converge'){
+    // drop the converge dot on a camera-facing vertical plane through the bouquet axis
+    const n=new THREE.Vector3(); camera.getWorldDirection(n); n.y=0; if(n.lengthSq()<1e-4)n.set(0,0,1); n.normalize();
+    const pt=new THREE.Vector3();
+    if(ray.ray.intersectPlane(new THREE.Plane(n,0),pt)){ pushHistory(); state.gather=[pt.x,pt.y,pt.z]; afterChange(); }
+    return;
+  }
+  if(state.mode==='scissors'){
+    const hits=ray.intersectObjects(flowerNodes,true);
+    if(hits.length){ const p=hits[0].point; pushHistory(); state.cuts.push({x:p.x,y:p.y,z:p.z,r:0.20}); if(state.cuts.length>CUT_MAX)state.cuts.shift(); afterChange(); }
+    else toast('Tap on a flower part to trim it');
+    return;
+  }
+  const hits=ray.intersectObjects(flowerNodes,true);
+  if(hits.length){ let o=hits[0].object; while(o.parent&&o.parent!==bouquetGroup)o=o.parent; selectedUid=(o.userData.uid!=null)?o.userData.uid:null; }
+  else selectedUid=null;
+  showSel(); rebuild();
+}
+function showSel(){ const on=(selectedUid!=null); const d=document.getElementById('selBar'); if(d)d.style.display=on?'flex':'none'; const c=document.getElementById('colorBar'); if(c)c.classList.toggle('on',on); }
+function setColor(hex){ if(selectedUid==null)return; const s=state.stems.find(x=>x.uid===selectedUid); if(!s)return; pushHistory(); s.color=hex;
+  const node=flowerNodes.find(n=>n.userData&&n.userData.uid===selectedUid); if(node)recolorNode(node,hex);   // recolour the live flower in place — no rebuild, no flicker
+  saveState(); }
+// center a model at origin and scale so its largest dim = target
+function fitCentered(obj,target){
+  obj.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(obj),size=box.getSize(new THREE.Vector3()),c=box.getCenter(new THREE.Vector3());
+  const s=target/(Math.max(size.x,size.y,size.z)||1);
+  obj.position.set(-c.x*s,-c.y*s,-c.z*s); obj.scale.setScalar(s);
+  const holder=new THREE.Group(); holder.add(obj); return holder;
+}
+// scale so HEIGHT = target, seat base at y=0, centered in x/z
+function fitStanding(obj,targetH){
+  obj.updateMatrixWorld(true);
+  let box=new THREE.Box3().setFromObject(obj),size=box.getSize(new THREE.Vector3());
+  const s=targetH/(size.y||1); obj.scale.setScalar(s); obj.updateMatrixWorld(true);
+  box=new THREE.Box3().setFromObject(obj);
+  obj.position.x-=(box.min.x+box.max.x)/2; obj.position.z-=(box.min.z+box.max.z)/2; obj.position.y-=box.min.y;
+  const holder=new THREE.Group(); holder.add(obj);
+  holder.userData.topY=box.max.y-box.min.y;                                          // real rim height (top of paper)
+  holder.userData.halfW=Math.max(box.max.x-box.min.x,box.max.z-box.min.z)*0.5;       // real opening half-width (drives the cone mask)
+  return holder;
+}
+
+// scale so HEIGHT = target, seat base at y=0, centered x/z (for stem flowers)
+function fitToHeight(obj,targetH){
+  obj.updateMatrixWorld(true);
+  let box=new THREE.Box3().setFromObject(obj),size=box.getSize(new THREE.Vector3());
+  const s=targetH/(size.y||1); obj.scale.setScalar(s); obj.updateMatrixWorld(true);
+  box=new THREE.Box3().setFromObject(obj);
+  obj.position.x-=(box.min.x+box.max.x)/2; obj.position.z-=(box.min.z+box.max.z)/2; obj.position.y-=box.min.y;
+  const holder=new THREE.Group(); holder.add(obj); return holder;
+}
+
+const WRAP_H=3.0, HEAD=0.62, BABY=0.62;
+let rebuildToken=0;
+
+async function rebuild(){
+  const my=++rebuildToken;
+  spin(true);
+  try{
+    // wrapper
+    const wdef=WRAPPERS.find(w=>w.id===state.wrapper);
+    const wsrc=await loadModel(wdef.src); if(my!==rebuildToken)return;
+    while(bouquetGroup.children.length)bouquetGroup.remove(bouquetGroup.children[0]); selRing=null; selectedNode=null;
+    wrapperNode=fitStanding(wsrc.clone(true),WRAP_H);
+    // REPLACE the glassy transmission material with a fully OPAQUE matte paper so the wrapper truly occludes
+    // everything behind it (the GLBs ship as KHR transmission/volume, which renders see-through).
+    wrapperNode.traverse(o=>{ if(o.isMesh&&o.material){
+      const old=Array.isArray(o.material)?o.material[0]:o.material; const map=(old&&old.map)||null;
+      o.material=new THREE.MeshStandardMaterial({map:map, color:map?0xffffff:((old&&old.color&&old.color.getHex)?old.color.getHex():0xece6da), roughness:0.92, metalness:0.0, side:THREE.DoubleSide});
+    }});
+    bouquetGroup.add(wrapperNode);
+    const topY=wrapperNode.userData.topY, halfW=wrapperNode.userData.halfW||0.6;
+    // Manual converge point + scissor trim volumes; the opaque paper still occludes whatever is inside it.
+    const cage=setCage(state.wrapper); SU.uRimY.value=topY*(cage.rimMul||1); SU.uBaseY.value=0;   // load THIS wrapper's sculpted cage
+    const G=(state.gather&&state.gather.length===3)?new THREE.Vector3(state.gather[0],state.gather[1],state.gather[2]):new THREE.Vector3(0,topY*0.45,0);   // bind near the throat → shorter stems that stay inside
+    flowerNodes=[];
+    const N=state.stems.length;
+    for(let i=0;i<N;i++){
+      const st=state.stems[i];
+      const fdef=FLOWERS.find(f=>f.id===st.id); if(!fdef)continue;
+      const src=await loadModel(fdef.src); if(my!==rebuildToken)return;
+      const t=(N>1?i/(N-1):0), phi=i*GOLD+(st.jphi||0);
+      const lean=Math.min(0.55, state.bunch*(0.12+0.40*t));    // Bunch angle (capped) so blooms stay near the opening, stems stay inside
+      const up=new THREE.Vector3(Math.sin(lean)*Math.cos(phi),Math.cos(lean),Math.sin(lean)*Math.sin(phi)).normalize();
+      const span=(topY-G.y)+0.20+state.bloomLift;              // reach from the converge point up to ~the opening
+      const L=Math.max(0.6, span/Math.max(0.42,up.y))*(0.85+0.25*state.bloomSize)*state.stemLen;   // Stem length scales reach
+      const node=fitToHeight(src.clone(true), L*st.scale);
+      node.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),up)
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),st.spin));
+      node.position.set(G.x+(st.dx||0), G.y+(st.dy||0), G.z+(st.front||0)); // every stem base meets at the converge point
+      node.userData.uid=st.uid; flowerNodes.push(node);
+      node.traverse(o=>{ if(o.isMesh&&o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;});}});
+      applyMask(node);                                         // scissor trim volumes
+      if(st.color)recolorNode(node,st.color);                  // per-flower colour
+      bouquetGroup.add(node);
+      if(st.uid===selectedUid){ selectedNode=node; node.traverse(o=>{ if(o.isMesh)o.layers.enable(1); }); }   // mark for the screen-space white outline
+    }
+    // converge-point dot (shown while placing it)
+    if(state.mode==='converge'){
+      const dot=new THREE.Mesh(new THREE.SphereGeometry(0.09,14,12),new THREE.MeshBasicMaterial({color:0x2bd1c4,depthTest:false}));
+      dot.position.copy(G); dot.renderOrder=998; bouquetGroup.add(dot);
+    }
+    frame();
+  }catch(e){ console.warn('rebuild failed',e); toast('Could not load a flower - check connection'); }
+  spin(false);
+}
+function frame(){
+  const box=new THREE.Box3().setFromObject(bouquetGroup),c=box.getCenter(new THREE.Vector3());
+  controls.target.set(0,c.y,0);
+}
+function ensureDepthRT(w,h){
+  if(depthRT && depthRT.width===w && depthRT.height===h) return;
+  if(depthRT)depthRT.dispose();
+  depthRT=new THREE.WebGLRenderTarget(w,h);
+  depthRT.depthTexture=new THREE.DepthTexture(w,h,THREE.UnsignedIntType);
+}
+function setFlowersVisible(v){ if(!bouquetGroup)return; bouquetGroup.children.forEach(c=>{ if(c!==wrapperNode)c.visible=v; }); }
+
+/* ---------------- chip thumbnails (rendered from each GLB, so it's a real picture + a load check) ---------------- */
+let thumbR,thumbScene,thumbCam;
+function initThumb(){
+  thumbR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
+  thumbR.setSize(220,220); thumbR.setPixelRatio(2); thumbR.outputEncoding=THREE.sRGBEncoding;
+  thumbScene=new THREE.Scene();
+  thumbScene.add(new THREE.HemisphereLight(0xffffff,0x99948a,1.15));
+  const d=new THREE.DirectionalLight(0xffffff,1.0); d.position.set(2,3,4); thumbScene.add(d);
+  thumbCam=new THREE.PerspectiveCamera(35,1,0.01,100);
+}
+async function makeThumb(src){
+  const obj=(await loadModel(src)).clone(true);
+  const holder=fitCentered(obj,1.5);
+  // clone materials so the bouquet's cone-mask never affects the thumbnail picture
+  holder.traverse(o=>{ if(o.isMesh&&o.material){
+    const cl=m=>{ const c=m.clone(); c.side=THREE.DoubleSide; c.onBeforeCompile=function(){}; c.customProgramCacheKey=function(){return 'thumb';}; c.userData={}; c.needsUpdate=true; return c; };
+    o.material=Array.isArray(o.material)?o.material.map(cl):cl(o.material);
+  }});
+  thumbScene.add(holder);
+  const box=new THREE.Box3().setFromObject(holder),c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3());
+  const rad=Math.max(s.x,s.y,s.z)*0.5||1;
+  thumbCam.position.set(c.x, c.y+rad*0.15, c.z+rad*3.0); thumbCam.lookAt(c);
+  thumbR.render(thumbScene,thumbCam);
+  const data=thumbR.domElement.toDataURL('image/png');
+  thumbScene.remove(holder);
+  return data;
+}
+async function setThumbs(list,sel){
+  for(const def of list){
+    try{ const d=await makeThumb(def.src); thumbData[def.id]=d;
+      document.querySelectorAll(sel+' .chip[data-id="'+def.id+'"] .sw').forEach(sw=>{
+        sw.style.backgroundImage='url('+d+')'; sw.style.backgroundSize='cover'; sw.style.backgroundPosition='center'; sw.textContent='';
+      });
+    }catch(e){ console.warn('thumb failed:',def.id,e&&e.message); }
+  }
+}
+async function loadThumbs(){ await setThumbs(WRAPPERS,'#wraps'); await setThumbs(FLOWERS,'#flowers'); }
+
+/* ---------------- arrangement ---------------- */
+// tap a flower → add one of it to the bouquet
+function addFlower(id){
+  if(state.stems.length>=MAX_STEMS){ toast("That's a full bouquet!"); return; }
+  pushHistory(); state.stems.push(makeStem(id));
+  afterChange();
+}
+function removeFlower(id){ pushHistory(); for(let i=state.stems.length-1;i>=0;i--){ if(state.stems[i].id===id){ state.stems.splice(i,1); break; } } afterChange(); }
+function removeByUid(uid){ pushHistory(); const i=state.stems.findIndex(s=>s.uid===uid); if(i>=0)state.stems.splice(i,1); selectedUid=null; showSel(); afterChange(); }
+function nudgeSel(prop,d){ if(selectedUid==null)return; const s=state.stems.find(x=>x.uid===selectedUid); if(s){ pushHistory(); s[prop]=(s[prop]||0)+d; afterChange(); } }
+function setFlowerCount(id,n){
+  n=Math.max(0,Math.min(MAX_STEMS,n|0)); let c=state.stems.filter(s=>s.id===id).length; if(c===n)return;
+  pushHistory();
+  while(c<n && state.stems.length<MAX_STEMS){ state.stems.push(makeStem(id)); c++; }
+  while(c>n){ const idx=state.stems.map(s=>s.id).lastIndexOf(id); if(idx<0)break; state.stems.splice(idx,1); c--; }
+  afterChange();
+}
+function clearBouquet(){ pushHistory(); state.stems=[]; selectedUid=null; showSel(); afterChange(); }
+// Generate: keep the EXACT flowers + colours you have, just reshuffle the arrangement (a fresh look, same bouquet)
+function generate(){
+  if(!state.stems.length){ for(let i=0;i<Math.max(3,state.count||12);i++)state.stems.push(makeStem('redrose')); }
+  pushHistory();
+  for(let i=state.stems.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=state.stems[i]; state.stems[i]=state.stems[j]; state.stems[j]=t; }   // shuffle positions
+  state.stems.forEach(st=>{ st.spin=Math.random()*TAU; st.scale=0.85+Math.random()*0.3; st.jy=(Math.random()-0.5)*0.12; st.jphi=Math.random()*0.5; });   // re-jitter, but KEEP id + colour
+  afterChange();
+}
+// Presets (Dozen / 2 Dozen / 50): a FRESH bouquet of n flowers using the current flower mix (or roses)
+function genPreset(n){
+  pushHistory();
+  let types=Array.from(new Set(state.stems.map(s=>s.id)));
+  if(!types.length)types=['redrose'];
+  const blooms=types.filter(id=>{const f=FLOWERS.find(x=>x.id===id);return f&&!f.filler;});
+  const fillers=types.filter(id=>{const f=FLOWERS.find(x=>x.id===id);return f&&f.filler;});
+  const pool=blooms.length?blooms:types;
+  state.stems=[];
+  for(let i=0;i<Math.max(3,n);i++){ const useFiller=fillers.length&&Math.random()<0.30; state.stems.push(makeStem(useFiller?fillers[rand(fillers.length)]:pool[rand(pool.length)])); }
+  afterChange();
+}
+
+/* ---------------- pricing ---------------- */
+function priceOf(){
+  let total=WRAPPERS.find(w=>w.id===state.wrapper).price, counts={};
+  for(const st of state.stems){ const f=FLOWERS.find(x=>x.id===st.id); total+=f.price; counts[st.id]=(counts[st.id]||0)+1; }
+  return {total,counts};
+}
+function updatePrice(){
+  const r=priceOf();
+  document.getElementById('amt').textContent='$'+r.total;
+  document.getElementById('cnt').textContent=state.stems.length+' stem'+(state.stems.length===1?'':'s');
+}
+
+/* ---------------- UI ---------------- */
+function chip(container,def,kind,selected,onTap,onRemove){
+  const b=document.createElement('button'); b.className='chip'+(selected?' on':''); b.dataset.id=def.id;
+  b.innerHTML='<div class="sw" style="background:'+def.dot+'">'+(def.filler?'❀':'')+'</div>'+
+              (kind==='count'?'<div class="count">0</div><div class="minus">−</div>':'<div class="tick">✓</div>')+
+              '<div class="nm">'+def.name+'</div>';
+  b.onclick=()=>onTap(b);
+  if(kind==='count'){ const mn=b.querySelector('.minus'); if(mn)mn.onclick=(e)=>{ e.stopPropagation(); if(onRemove)onRemove(); }; }
+  container.appendChild(b); return b;
+}
+function updateCounts(){
+  const counts={}; state.stems.forEach(s=>counts[s.id]=(counts[s.id]||0)+1);
+  document.querySelectorAll('#flowers .chip').forEach(b=>{
+    const n=counts[b.dataset.id]||0;
+    b.classList.toggle('has',n>0);
+    const c=b.querySelector('.count'); if(c)c.textContent=n;
+  });
+}
+function buildUI(){
+  const wraps=document.getElementById('wraps');
+  WRAPPERS.forEach(w=>chip(wraps,w,'select',w.id===state.wrapper,(b)=>{
+    state.wrapper=w.id;
+    Array.prototype.forEach.call(wraps.children,c=>c.classList.remove('on')); b.classList.add('on');
+    updatePrice(); rebuild(); saveState();
+  }));
+  const fl=document.getElementById('flowers');
+  FLOWERS.forEach(f=>chip(fl,f,'count',false,()=>openPreview(f),()=>removeFlower(f.id)));
+  document.getElementById('presets').addEventListener('click',e=>{
+    const btn=e.target.closest('button'); if(!btn)return;
+    state.count=parseInt(btn.dataset.n,10)||12;
+    Array.prototype.forEach.call(e.currentTarget.children,c=>c.classList.remove('on')); btn.classList.add('on');
+    genPreset(state.count);   // one click → fresh bouquet of that many
+  });
+  const bs=document.getElementById('bsize'), bl=document.getElementById('blift'), bn=document.getElementById('bunch'), sl=document.getElementById('stemlen');
+  bs.value=state.bloomSize; bl.value=state.bloomLift; bn.value=state.bunch; sl.value=state.stemLen;
+  bs.oninput=()=>{ state.bloomSize=parseFloat(bs.value)||1; rebuild(); saveState(); };
+  bl.oninput=()=>{ state.bloomLift=parseFloat(bl.value)||0; rebuild(); saveState(); };
+  bn.oninput=()=>{ state.bunch=parseFloat(bn.value)||0; rebuild(); saveState(); };
+  sl.oninput=()=>{ state.stemLen=parseFloat(sl.value)||1; rebuild(); saveState(); };
+  const tr=document.getElementById('trim'); tr.value=state.trim;
+  tr.oninput=()=>{ state.trim=parseFloat(tr.value); rebuild(); saveState(); };
+  document.getElementById('clearBtn').onclick=clearBouquet;
+  document.getElementById('gen').onclick=generate;
+  document.getElementById('reserve').onclick=openOrder;
+  const rb=document.getElementById('rotBtn');
+  rb.classList.toggle('off',!controls.autoRotate);   // reflect the no-spin default
+  rb.onclick=()=>{ controls.autoRotate=!controls.autoRotate; rb.classList.toggle('off',!controls.autoRotate); };
+  const cv=document.getElementById('cvBtn'), cut=document.getElementById('cutBtn'), rst=document.getElementById('resetTool');
+  function setMode(m){ state.mode=(state.mode===m)?'select':m;
+    cv.classList.toggle('on',state.mode==='converge'); cut.classList.toggle('on',state.mode==='scissors');
+    if(state.mode==='converge')toast('Tap to place the converge point'); else if(state.mode==='scissors')toast('Tap any flower part to trim it away');
+    rebuild();
+  }
+  cv.onclick=()=>setMode('converge');
+  cut.onclick=()=>setMode('scissors');
+  rst.onclick=()=>{ pushHistory(); state.gather=null; state.cuts=[]; afterChange(); toast('Converge point & trims reset'); };
+  document.getElementById('leftBtn').onclick=()=>nudgeSel('dx',-0.10);
+  document.getElementById('rightBtn').onclick=()=>nudgeSel('dx',0.10);
+  document.getElementById('delBtn').onclick=()=>{ if(selectedUid!=null)removeByUid(selectedUid); };
+  document.getElementById('upBtn').onclick=()=>nudgeSel('dy',0.12);
+  document.getElementById('downBtn').onclick=()=>nudgeSel('dy',-0.12);
+  document.getElementById('fwdBtn').onclick=()=>nudgeSel('front',0.30);
+  document.getElementById('backBtn').onclick=()=>nudgeSel('front',-0.30);
+  ['#ffffff','#d23b3b','#e87aa6','#f0c34a','#9b6bc0','#6f8fc4','#e8893c'].forEach(hex=>{
+    const b=document.createElement('button'); b.className='csw'; b.style.background=hex; b.title='Recolour'; b.onclick=()=>setColor(hex);
+    document.getElementById('colorBar').appendChild(b);
+  });
+  // PC keyboard shortcuts: Delete (remove selected), Ctrl+Z (undo), Ctrl+D (duplicate selected)
+  addEventListener('keydown',e=>{
+    const tag=e.target&&e.target.tagName; if(tag&&/INPUT|TEXTAREA|SELECT/.test(tag))return;
+    if(e.key==='Delete'||e.key==='Backspace'){ if(selectedUid!=null){ e.preventDefault(); removeByUid(selectedUid); } }
+    else if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){ e.preventDefault(); undo(); }
+    else if((e.ctrlKey||e.metaKey)&&(e.key==='d'||e.key==='D')){ e.preventDefault(); if(selectedUid!=null){ const s=state.stems.find(x=>x.uid===selectedUid); if(s)addFlower(s.id); } }
+  });
+}
+
+/* ---------------- flower detail preview ---------------- */
+function openPreview(def){
+  const cur=()=>state.stems.filter(s=>s.id===def.id).length;
+  const img=thumbData[def.id]?('background-image:url('+thumbData[def.id]+')'):('background:'+def.dot);
+  document.getElementById('pvcard').innerHTML=
+    '<div class="pvimg" style="'+img+'"></div>'+
+    '<h3>'+def.name+'</h3><div class="pvprice">$'+def.price+' each'+(def.filler?' · filler':'')+'</div>'+
+    '<div class="pvqty"><button id="pvMinus">−</button><input id="pvCount" type="number" min="0" max="'+MAX_STEMS+'" value="'+cur()+'"><button id="pvPlus">+</button></div>'+
+    '<div style="font-size:11px;color:var(--muted);margin:-8px 0 14px">type a number to set exactly</div>'+
+    '<button id="pvClose">Done</button>';
+  document.getElementById('preview').classList.add('on');
+  const cEl=()=>document.getElementById('pvCount');
+  const sync=()=>{ const c=cEl(); if(c)c.value=cur(); };
+  document.getElementById('pvPlus').onclick=()=>{ addFlower(def.id); sync(); };
+  document.getElementById('pvMinus').onclick=()=>{ removeFlower(def.id); sync(); };
+  cEl().onchange=()=>{ setFlowerCount(def.id,parseInt(cEl().value,10)||0); sync(); };
+  document.getElementById('pvClose').onclick=()=>document.getElementById('preview').classList.remove('on');
+}
+/* ---------------- order sheet ---------------- */
+function openOrder(){
+  if(!state.stems.length){ toast('Tap Generate to make a bouquet first'); return; }
+  const r=priceOf(), counts=r.counts;
+  const wdef=WRAPPERS.find(w=>w.id===state.wrapper);
+  let rows='<div class="lineitem"><span>'+wdef.name+' wrapper</span><span>$'+wdef.price+'</span></div>';
+  FLOWERS.forEach(f=>{ if(counts[f.id])rows+='<div class="lineitem"><span>'+counts[f.id]+'× '+f.name+'</span><span>$'+(counts[f.id]*f.price)+'</span></div>'; });
+  rows+='<div class="lineitem total"><span>Total</span><span>$'+r.total+'</span></div>';
+  document.getElementById('sheet').innerHTML=
+    '<h3>Reserve your bouquet</h3>'+rows+
+    '<input id="ordName" placeholder="Your name" autocomplete="name">'+
+    '<input id="ordPhone" placeholder="Phone (for pickup)" inputmode="tel">'+
+    '<div class="acts"><button id="ordCancel">Back</button><button id="ordPlace">Place reservation</button></div>';
+  document.getElementById('ord').classList.add('on');
+  document.getElementById('ordCancel').onclick=()=>document.getElementById('ord').classList.remove('on');
+  document.getElementById('ordPlace').onclick=placeOrder;
+}
+function placeOrder(){
+  const name=(document.getElementById('ordName').value||'').trim();
+  if(!name){ document.getElementById('ordName').focus(); return; }
+  const r=priceOf();
+  const order={name,phone:(document.getElementById('ordPhone').value||'').trim(),
+    wrapper:state.wrapper,stems:state.stems.length,counts:r.counts,total:r.total};
+  console.log('ORDER ->',order);   // MVP: log it; later this POSTs to the shop
+  document.getElementById('sheet').innerHTML=
+    '<div id="done"><div class="big">💐</div><h3>Reserved!</h3>'+
+    '<p style="color:var(--muted);font-size:14px">Thanks '+name.replace(/[<>]/g,'')+' - the shop has your bouquet ($'+r.total+'). Pay at pickup.</p>'+
+    '<div class="acts"><button id="ordCancel">Done</button></div></div>';
+  document.getElementById('ordCancel').onclick=()=>document.getElementById('ord').classList.remove('on');
+}
+
+/* ---------------- misc ---------------- */
+let toastT=null;
+function toast(msg){
+  let t=document.getElementById('toast');
+  if(!t){ t=document.createElement('div'); t.id='toast'; t.style.cssText=
+    'position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:rgba(30,24,16,.92);color:#f4ecd9;'+
+    'padding:10px 16px;border-radius:20px;font-size:13px;z-index:60;max-width:80%;text-align:center'; document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.opacity='0',2600);
+}
+function spin(on){ const s=document.getElementById('spin'); s.classList.toggle('on',on); }
+
+/* ---------------- go ---------------- */
+if(location.protocol==='file:'){
+  // Opened by double-clicking the file → browsers block local .glb loads. Tell the user how to fix it.
+  document.getElementById('stage').innerHTML=
+    '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center">'+
+    '<div style="max-width:420px;color:#574a36">'+
+    '<div style="font-size:40px">🌸</div>'+
+    '<h2 style="font-style:italic;margin:8px 0">Open me the right way</h2>'+
+    '<p style="font-size:15px;line-height:1.5;color:#7c7466">This app is open as a <b>file</b>, so the browser blocks the flower files.<br><br>'+
+    'In your browser address bar, go to:</p>'+
+    '<div style="font-size:20px;font-weight:700;background:#fff;border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0">http://localhost:8780/</div>'+
+    '<p style="font-size:12px;color:#9a9182">(The little server must be running — it is on this PC.)</p>'+
+    '</div></div>';
+}else{
+  initThree();
+  initThumb();
+  const restored=loadState();          // bring back the saved design (wrapper, flowers, sizes)
+  buildUI();
+  if(restored){ updatePrice(); updateCounts(); rebuild(); }
+  else generate();                     // first visit → a ready-made bouquet
+  loadThumbs();  // fill the chips with real pictures (async); flowers that fail stay a colour swatch
+}
+</script>
+</body>
+</html>

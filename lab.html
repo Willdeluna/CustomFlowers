@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrapper Lab — sculptable deleter</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#e9e3d6;font:13px/1.4 -apple-system,Segoe UI,Roboto,Arial}
+  #c{display:block;width:100vw;height:100vh;touch-action:none}
+  #panel{position:fixed;top:0;left:0;width:272px;max-height:100vh;overflow:auto;background:rgba(20,16,10,.88);color:#f0e8d8;padding:10px 12px;box-sizing:border-box}
+  h1{font-size:14px;margin:2px 0 8px;font-style:italic;color:#f4d9a0}
+  h2{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#c9a24a;margin:12px 0 4px}
+  .row{display:flex;align-items:center;gap:6px;margin:3px 0}
+  .row label{flex:1;font-size:12px}
+  .row input[type=range]{flex:1.3;accent-color:#e07a3c}
+  .row output{width:36px;text-align:right;color:#e7c558;font-variant-numeric:tabular-nums}
+  button{background:#3a2d1a;color:#f0e8d8;border:1px solid #6a5a3a;border-radius:6px;padding:6px 8px;cursor:pointer;font-size:12px}
+  button:hover{background:#4a3a22}
+  button.on{background:#c4622f;border-color:#e07a3c}
+  .btns{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+  .seg{display:flex}.seg button{border-radius:0;flex:1}.seg button:first-child{border-radius:6px 0 0 6px}.seg button:last-child{border-radius:0 6px 6px 0}
+  label.ck{display:flex;align-items:center;gap:7px;margin:4px 0;cursor:pointer}
+  #sel{background:#241c10;border:1px solid #6a5a3a;border-radius:6px;padding:6px;margin-top:4px;font-size:12px}
+  #hint{position:fixed;bottom:8px;right:10px;color:#6a5a3a;font-size:11px}
+  #err{position:fixed;bottom:8px;left:292px;color:#b23}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <h1>🔬 Wrapper Lab</h1>
+
+  <h2>Wrapper (sculpt each one)</h2>
+  <div class="seg" id="wrapPick"><button data-w="natural" class="on">Kraft</button><button data-w="pink">Pink</button><button data-w="white">White</button></div>
+
+  <h2>Flowers</h2>
+  <div class="btns" id="addBtns"></div>
+  <div class="btns"><button id="clear">Clear</button><button id="gen6">Gen 6</button><button id="gen12">12</button><button id="gen24">24</button></div>
+  <div id="count" style="color:#c9a24a;font-size:11px"></div>
+
+  <h2>Arrangement</h2>
+  <div class="row"><label>Gather Y</label><input type="range" id="gatherY" min="0" max="1" step="0.01" value="0.4"><output id="gatherYo"></output></div>
+  <div class="row"><label>Fan</label><input type="range" id="fan" min="0" max="1.2" step="0.02" value="0.5"><output id="fano"></output></div>
+  <div class="row"><label>Size</label><input type="range" id="fsize" min="0.4" max="2" step="0.02" value="1"><output id="fsizeo"></output></div>
+  <div class="row"><label>Bloom rise</label><input type="range" id="rise" min="-0.6" max="1.4" step="0.02" value="0.2"><output id="riseo"></output></div>
+
+  <h2>Deleter</h2>
+  <div class="seg" id="mode"><button data-v="0" class="on">Off (show all)</button><button data-v="2">Delete out</button></div>
+  <div class="row"><label>Cage top height</label><input type="range" id="rimMul" min="0.5" max="1.7" step="0.01" value="1"><output id="rimMulo"></output></div>
+
+  <h2>Sculpt shape</h2>
+  <div class="row"><label>Rings</label><span class="seg" id="ringCount" style="flex:1.4"><button data-n="4">4</button><button data-n="6" class="on">6</button><button data-n="8">8</button><button data-n="10">10</button></span></div>
+  <label class="ck"><input type="checkbox" id="editShape" checked> Show / edit nodes (uncheck to hide all)</label>
+  <label class="ck"><input type="checkbox" id="wholeRing"> Move the whole ring</label>
+  <div id="sel">Tap a teal point to select it.</div>
+  <div class="btns"><button id="reset">Reset to cone</button><button id="save">Save</button><button id="loadBtn">Load</button><button id="exportBtn">Export</button></div>
+
+  <h2>Debug view</h2>
+  <div class="seg" id="wrapMode"><button data-m="solid" class="on">Solid</button><button data-m="wire">Wire</button><button data-m="hide">Hide</button></div>
+  <label class="ck"><input type="checkbox" id="flWire"> Flowers wireframe</label>
+  <label class="ck"><input type="checkbox" id="ghost"> Ghost flowers (see-through)</label>
+  <label class="ck"><input type="checkbox" id="showCut"> Preview cut zone (paint red, don't delete)</label>
+  <label class="ck"><input type="checkbox" id="showDel" checked> Show deleter shape</label>
+  <label class="ck"><input type="checkbox" id="spin"> Auto-spin</label>
+</div>
+<div id="err"></div>
+<div id="hint">drag empty space to orbit · tap a teal point to pick it</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/meshopt_decoder.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/DRACOLoader.js"></script>
+<script>
+/* ===========================================================================
+   WRAPPER LAB v2 — a SCULPTABLE deleter.
+   A grid of control points (NH rings up the height × NA spokes around) defines a
+   radius field. The deleter hides (or bends) any flower geometry outside that field.
+   Tap a teal point, push it in/out, build any custom shape (special openings),
+   save it. It's radially defined around the centre axis so it rotates with the bouquet.
+   =========================================================================== */
+const CDN='https://cdn.jsdelivr.net/gh/Willdeluna/Junkos_Flowers3@main/';
+const WRAPS=[
+  {id:'natural',name:'Kraft', file:'wrappers/Wrapper_Bouquet.glb'},
+  {id:'pink',   name:'Pink',  file:'wrappers/Wrapper_Bouquet_Pink.glb'},
+  {id:'white',  name:'White', file:'wrappers/Wrapper_White_Bouquet.glb'},
+];
+let curWrap='natural';
+const FLOWERS=[
+  {id:'redrose',name:'Red Rose',file:'Red Rose.glb'},
+  {id:'smallrose',name:'Small Rose',file:'Small Rose.glb'},
+  {id:'hydrangea',name:'Hydrangea',file:'blue hydrangea 2.glb'},
+  {id:'baby',name:"Baby's Br",file:'Babies Breathe.glb'},
+];
+const WRAP_H=3.0, GOLD=Math.PI*(3-Math.sqrt(5));
+let NH=6; const NA=8;             // control rings (adjustable) × spokes around
+const state={ stems:[], gatherY:0.4, fan:0.5, fsize:1, rise:0.2, mode:0, rimMul:1, grid:null, nodeY:null, open:null, showCut:false };
+
+let renderer,scene,camera,controls,group,wrapperNode,topY=3,halfW=1,autoSpin=false;
+let delGroup,ctrlGroup,ctrlPts=[],selected=null;
+const cache={}, ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function err(m){ document.getElementById('err').textContent=m||''; }
+
+/* ---- the deleter radius field (NH×NA grid of radii) ---- */
+function gi(h,a){ return h*NA+a; }
+function coneGrid(){ const g=new Float32Array(NH*NA); for(let h=0;h<NH;h++){ const r=halfW*(0.4+1.0*(h/(NH-1))); for(let a=0;a<NA;a++)g[gi(h,a)]=r; } return g; }
+function ensureGrid(){ if(!state.grid||state.grid.length!==NH*NA)state.grid=coneGrid(); if(!state.nodeY||state.nodeY.length!==NH*NA){ state.nodeY=new Float32Array(NH*NA); for(let h=0;h<NH;h++)for(let a=0;a<NA;a++)state.nodeY[gi(h,a)]=h/(NH-1); } if(!state.open||state.open.length!==NH*NA)state.open=new Uint8Array(NH*NA); }
+
+/* ---- shader: sample the grid; bend (mode 1) or delete (mode 2) outside it ---- */
+const MASK={mode:0,rimY:1e9,baseY:0,grid:null,nodeY:null,open:null,showCut:false};
+// SHARED uniform objects — every flower material references these SAME objects, so one edit reaches them all.
+const SU={ uRimY:{value:1e9}, uBaseY:{value:0}, uMode:{value:0}, uShowCut:{value:0}, uGrid:{value:[]}, uNodeY:{value:[]}, uOpen:{value:[]} };
+function resizeSU(){ SU.uGrid.value=new Array(NH*NA).fill(0.5); SU.uNodeY.value=new Array(NH*NA).fill(0); SU.uOpen.value=new Array(NH*NA).fill(0); }
+// loop-based lookup (ES 1.00 allows array indexing by LOOP indices, NOT by computed ints — that bug hid all flowers).
+// height bands come from uRingY[] so rings can be raised/lowered; tent weights blend the grid (bilinear-ish).
+let FN,DECL;
+function buildShaderStrings(){   // recomputed whenever the ring count (NH) changes
+  // each node has its OWN height (uNodeY) — interpolate radius along each spoke's height profile, blend across spokes.
+  // Returns cage radius (r). ceilTT (out) = the SCULPTABLE rim — the per-angle top-node height. Nothing above it is ever cut.
+  FN='float delR(vec3 wp, out float ceilTT){ float tt=clamp((wp.y-uBaseY)/max(uRimY-uBaseY,1e-4),0.0,1.0);'+
+    ' float ang=atan(wp.z,wp.x); float af=ang*0.15915494; af=(af-floor(af))*float('+NA+');'+
+    ' float r=0.0; float cc=0.0; float wsum=0.0;'+
+    ' for(int a=0;a<'+NA+';a++){ float dd=abs(float(a)-af); dd=min(dd,float('+NA+')-dd); float aw=max(0.0,1.0-dd); if(aw<=0.0){ continue; }'+
+    '   cc+=uNodeY['+(NH-1)+'*'+NA+'+a]*aw;'+
+    '   float gb=uGrid[a]; if(uOpen[a]>0.5){gb=50.0;} float sr=gb;'+
+    '   for(int h=0;h<'+(NH-1)+';h++){ float y0=uNodeY[h*'+NA+'+a]; float y1=uNodeY[(h+1)*'+NA+'+a];'+
+    '     float g0=uGrid[h*'+NA+'+a]; if(uOpen[h*'+NA+'+a]>0.5){g0=50.0;} float g1=uGrid[(h+1)*'+NA+'+a]; if(uOpen[(h+1)*'+NA+'+a]>0.5){g1=50.0;}'+
+    '     if(tt>y0 && tt<=y1){ float f=(tt-y0)/max(y1-y0,1e-4); sr=mix(g0,g1,f); } if(tt>y1 && h=='+(NH-2)+'){ sr=g1; } }'+
+    '   r+=sr*aw; wsum+=aw; }'+
+    ' ceilTT=(wsum>0.0)?cc/wsum:1.0; return (wsum>0.0)?r/wsum:50.0; }';
+  DECL='varying vec3 vWp;\nuniform float uRimY;uniform float uBaseY;uniform float uMode;uniform float uShowCut;uniform float uGrid['+(NH*NA)+'];uniform float uNodeY['+(NH*NA)+'];uniform float uOpen['+(NH*NA)+'];\n'+FN+'\n';
+}
+buildShaderStrings();
+function delCompile(shader){
+  shader.uniforms.uRimY=SU.uRimY; shader.uniforms.uBaseY=SU.uBaseY; shader.uniforms.uMode=SU.uMode; shader.uniforms.uShowCut=SU.uShowCut;
+  shader.uniforms.uGrid=SU.uGrid; shader.uniforms.uNodeY=SU.uNodeY; shader.uniforms.uOpen=SU.uOpen;
+  // SAFE injection: vertex only writes a world-position varying (no project_vertex override). Fragment does the delete.
+  shader.vertexShader='varying vec3 vWp;\n'+shader.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n  vWp=(modelMatrix*vec4(transformed,1.0)).xyz;');
+  // discard the cut fragments (normal) OR, in preview, paint them red at the end so you can SEE the cut zone
+  shader.fragmentShader=DECL+shader.fragmentShader
+    .replace('#include <clipping_planes_fragment>',
+      '#include <clipping_planes_fragment>\n  if(uMode>1.5 && uShowCut<0.5){ float cl; float cr=delR(vWp,cl); float tt2=clamp((vWp.y-uBaseY)/max(uRimY-uBaseY,1e-4),0.0,1.0); if(tt2<cl && length(vWp.xz)>cr){ discard; } }')
+    .replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\n  if(uShowCut>0.5){ float cl; float cr=delR(vWp,cl); float tt2=clamp((vWp.y-uBaseY)/max(uRimY-uBaseY,1e-4),0.0,1.0); if(tt2<cl && length(vWp.xz)>cr){ gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(1.0,0.1,0.1),0.82); } }');
+}
+function applyDel(node){ node.traverse(o=>{ if(o.isMesh&&o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m){ m.onBeforeCompile=delCompile; m.needsUpdate=true; } }); } }); }
+function syncU(){ SU.uRimY.value=MASK.rimY; SU.uBaseY.value=MASK.baseY; SU.uMode.value=MASK.mode; SU.uShowCut.value=MASK.showCut?1.0:0.0;
+  const g=MASK.grid, ny=MASK.nodeY, op=MASK.open;
+  if(g&&SU.uGrid.value.length===NH*NA)for(let i=0;i<NH*NA;i++)SU.uGrid.value[i]=g[i];
+  if(ny&&SU.uNodeY.value.length===NH*NA)for(let i=0;i<NH*NA;i++)SU.uNodeY.value[i]=ny[i];
+  if(op&&SU.uOpen.value.length===NH*NA)for(let i=0;i<NH*NA;i++)SU.uOpen.value[i]=op[i]; }
+
+/* ---- three setup ---- */
+function init(){
+  resizeSU();
+  const cv=document.getElementById('c');
+  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.outputEncoding=THREE.sRGBEncoding;
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xe9e3d6);
+  camera=new THREE.PerspectiveCamera(40,1,0.1,100); camera.position.set(0,2.6,7);
+  controls=new THREE.OrbitControls(camera,cv); controls.enableDamping=true; controls.target.set(0,2,0);
+  scene.add(new THREE.HemisphereLight(0xfff6e6,0x70684f,1.0));
+  const d=new THREE.DirectionalLight(0xffffff,1.0); d.position.set(3,6,4); scene.add(d);
+  scene.add(new THREE.GridHelper(8,8,0xb9af98,0xcfc7b2));
+  group=new THREE.Group(); scene.add(group);
+  let dx=0,dy=0; cv.addEventListener('pointerdown',e=>{dx=e.clientX;dy=e.clientY;});
+  cv.addEventListener('pointerup',e=>{ if(Math.hypot(e.clientX-dx,e.clientY-dy)<6) pick(e.clientX,e.clientY); });
+  resize(); addEventListener('resize',resize);
+  (function loop(){ requestAnimationFrame(loop); if(autoSpin)group.rotation.y+=0.005; controls.update(); renderer.render(scene,camera); })();
+}
+function resize(){ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+function gltf(){ const l=new THREE.GLTFLoader(); if(typeof MeshoptDecoder!=='undefined'&&l.setMeshoptDecoder)l.setMeshoptDecoder(MeshoptDecoder); try{ const dr=new THREE.DRACOLoader(); dr.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/draco/'); l.setDRACOLoader(dr);}catch(e){} return l; }
+function load(url){ if(cache[url])return cache[url]; cache[url]=new Promise((res,rej)=>gltf().load(url,g=>res(g.scene||g.scenes[0]),undefined,rej)); return cache[url]; }
+function fitToHeight(obj,h){ obj.updateMatrixWorld(true); let b=new THREE.Box3().setFromObject(obj),s=b.getSize(new THREE.Vector3()); const k=h/(s.y||1); obj.scale.setScalar(k); obj.updateMatrixWorld(true); b=new THREE.Box3().setFromObject(obj); obj.position.x-=(b.min.x+b.max.x)/2; obj.position.z-=(b.min.z+b.max.z)/2; obj.position.y-=b.min.y; const g=new THREE.Group(); g.add(obj); return g; }
+
+let token=0;
+async function rebuild(){
+  const my=++token; err('');
+  try{
+    const wdef=WRAPS.find(w=>w.id===curWrap)||WRAPS[0];
+    const wsrc=await load(encodeURI(wdef.file)); if(my!==token)return;   // local wrappers/ (self-contained)
+    while(group.children.length)group.remove(group.children[0]); ctrlPts=[];
+    wsrc.updateMatrixWorld(true); let ws=new THREE.Box3().setFromObject(wsrc).getSize(new THREE.Vector3());
+    wrapperNode=fitToHeight(wsrc.clone(true),WRAP_H);
+    topY=WRAP_H; halfW=Math.max(ws.x,ws.z)/Math.max(ws.y,1e-4)*WRAP_H*0.5;
+    ensureGrid(); applyWrapMode(); group.add(wrapperNode);
+    MASK.rimY=topY*state.rimMul; MASK.baseY=0; MASK.mode=state.mode; MASK.grid=state.grid; MASK.nodeY=state.nodeY; MASK.open=state.open; MASK.showCut=state.showCut; syncU();
+    buildDeleterViz();
+    const G=new THREE.Vector3(0,topY*state.gatherY,0), N=state.stems.length;
+    for(let i=0;i<N;i++){
+      const st=state.stems[i]; const src=await load(encodeURI(st.file)); if(my!==token)return;
+      const t=N>1?i/(N-1):0, phi=i*GOLD+st.j, lean=state.fan*(0.2+0.9*t);
+      const up=new THREE.Vector3(Math.sin(lean)*Math.cos(phi),Math.cos(lean),Math.sin(lean)*Math.sin(phi)).normalize();
+      const span=(topY-G.y)+state.rise, L=Math.max(0.5,span/Math.max(0.4,up.y))*state.fsize;
+      const node=fitToHeight(src.clone(true),L);
+      node.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),up); node.position.copy(G);
+      const ghost=document.getElementById('ghost').checked, fw=document.getElementById('flWire').checked;
+      node.traverse(o=>{ if(o.isMesh&&o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ m.side=THREE.DoubleSide; m.wireframe=fw; if(ghost){ m.transparent=true; m.opacity=0.4; m.depthWrite=false; } else { m.transparent=false; m.opacity=1; m.depthWrite=true; } m.needsUpdate=true; }); } });
+      applyDel(node); group.add(node);
+    }
+    document.getElementById('count').textContent=N+' flowers · halfW='+halfW.toFixed(2);
+  }catch(e){ err('load failed: '+(e&&e.message||e)); console.warn(e); }
+}
+function ptPos(h,a){ const ang=a/NA*Math.PI*2, r=state.grid[gi(h,a)], y=MASK.baseY+state.nodeY[gi(h,a)]*(MASK.rimY-MASK.baseY); return new THREE.Vector3(Math.cos(ang)*r,y,Math.sin(ang)*r); }
+function buildDeleterViz(){
+  if(delGroup)group.remove(delGroup); if(ctrlGroup)group.remove(ctrlGroup);
+  delGroup=new THREE.Group(); ctrlGroup=new THREE.Group(); ctrlPts=[];
+  const showDel=document.getElementById('showDel').checked, edit=document.getElementById('editShape').checked;
+  const isOpen=(h,a)=>state.open&&state.open[gi(h,a)];
+  // loft wireframe — connect consecutive NON-open nodes so the path routes AROUND removed nodes
+  const segs=[];
+  for(let h=0;h<NH;h++){ const idx=[]; for(let a=0;a<NA;a++) if(!isOpen(h,a)) idx.push(a);
+    if(idx.length>1) for(let k=0;k<idx.length;k++) segs.push(ptPos(h,idx[k]),ptPos(h,idx[(k+1)%idx.length])); }
+  for(let a=0;a<NA;a++){ const idx=[]; for(let h=0;h<NH;h++) if(!isOpen(h,a)) idx.push(h);
+    for(let k=0;k<idx.length-1;k++) segs.push(ptPos(idx[k],a),ptPos(idx[k+1],a)); }
+  const lines=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:0x2bd1c4,transparent:true,opacity:0.6}));
+  delGroup.add(lines); delGroup.visible=showDel; group.add(delGroup);
+  // control spheres — open (removed) nodes shrink to a faint grey dot you can tap to bring back
+  if(edit){ for(let h=0;h<NH;h++) for(let a=0;a<NA;a++){
+      const sel=selected&&selected.h===h&&selected.a===a, open=isOpen(h,a);
+      const s=new THREE.Mesh(new THREE.SphereGeometry(sel?0.075:(open?0.028:0.05),12,10), new THREE.MeshBasicMaterial({color:sel?0xff5a2b:(open?0x666666:0x2bd1c4),depthTest:false,transparent:!!open,opacity:open?0.45:1}));
+      s.position.copy(ptPos(h,a)); s.renderOrder=999; s.userData={h,a}; ctrlGroup.add(s); ctrlPts.push(s);
+  } group.add(ctrlGroup); }
+}
+function pick(cx,cy){
+  if(!document.getElementById('editShape').checked||!ctrlPts.length)return;
+  const r=renderer.domElement.getBoundingClientRect(); ndc.x=((cx-r.left)/r.width)*2-1; ndc.y=-((cy-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera); ray.params.Points={threshold:0.1};
+  const hits=ray.intersectObjects(ctrlPts,false);
+  if(hits.length){ selected={h:hits[0].object.userData.h,a:hits[0].object.userData.a}; showSel(); buildDeleterViz(); }
+}
+function showSel(){ const el=document.getElementById('sel'); if(!selected){ el.textContent='Tap a teal point to select it.'; return; }
+  const rad=state.grid[gi(selected.h,selected.a)];
+  el.innerHTML='Ring '+selected.h+' · spoke '+selected.a+' &nbsp; <b>r='+rad.toFixed(2)+'</b>'+
+    '<div class="row" style="margin-top:4px"><label>Radius</label><input type="range" id="selR" min="0.02" max="'+(halfW*2.5).toFixed(2)+'" step="0.01" value="'+rad+'"></div>'+
+    '<div class="row"><label>Height</label><input type="range" id="selH" min="0" max="1" step="0.01" value="'+state.nodeY[gi(selected.h,selected.a)]+'"></div>'+
+    '<div class="btns"><button id="nIn">⟵ In</button><button id="nOut">Out ⟶</button><button id="nUp">Up ↑</button><button id="nDown">Dn ↓</button></div>'+
+    '<div class="btns"><button id="ringSmall">Ring shrink −</button><button id="ringBig">Ring grow +</button></div>'+
+    '<div class="btns"><button id="openTog">'+(state.open[gi(selected.h,selected.a)]?'↩ Bring node back':'✕ Remove node (open a gap)')+'</button></div>';
+  const apply=v=>{ v=Math.max(0.02,v); if(document.getElementById('wholeRing').checked){ for(let a=0;a<NA;a++)state.grid[gi(selected.h,a)]=v; } else { state.grid[gi(selected.h,selected.a)]=v; } syncU(); buildDeleterViz(); const b=document.querySelector('#sel b'); if(b)b.textContent='r='+v.toFixed(2); const sr=document.getElementById('selR'); if(sr)sr.value=v; };
+  const applyH=v=>{ v=Math.max(0,Math.min(1,v)); if(document.getElementById('wholeRing').checked){ for(let a=0;a<NA;a++)state.nodeY[gi(selected.h,a)]=v; } else state.nodeY[gi(selected.h,selected.a)]=v; syncU(); buildDeleterViz(); const sh=document.getElementById('selH'); if(sh)sh.value=v; };
+  document.getElementById('selR').oninput=e=>apply(parseFloat(e.target.value));
+  document.getElementById('selH').oninput=e=>applyH(parseFloat(e.target.value));
+  document.getElementById('nIn').onclick=()=>apply(state.grid[gi(selected.h,selected.a)]-0.12);
+  document.getElementById('nOut').onclick=()=>apply(state.grid[gi(selected.h,selected.a)]+0.12);
+  document.getElementById('nUp').onclick=()=>applyH(state.nodeY[gi(selected.h,selected.a)]+0.05);
+  document.getElementById('nDown').onclick=()=>applyH(state.nodeY[gi(selected.h,selected.a)]-0.05);
+  document.getElementById('ringSmall').onclick=()=>{ for(let a=0;a<NA;a++)state.grid[gi(selected.h,a)]=Math.max(0.02,state.grid[gi(selected.h,a)]*0.88); syncU(); buildDeleterViz(); showSel(); };
+  document.getElementById('ringBig').onclick=()=>{ for(let a=0;a<NA;a++)state.grid[gi(selected.h,a)]*=1.14; syncU(); buildDeleterViz(); showSel(); };
+  document.getElementById('openTog').onclick=()=>{ const i=gi(selected.h,selected.a); state.open[i]=state.open[i]?0:1; syncU(); buildDeleterViz(); showSel(); };
+}
+function applyWrapMode(){ if(!wrapperNode)return; const mode=document.querySelector('#wrapMode button.on').dataset.m; wrapperNode.visible=mode!=='hide';
+  wrapperNode.traverse(o=>{ if(o.isMesh&&o.material){ const old=Array.isArray(o.material)?o.material[0]:o.material; const map=(old&&old.map)||null; const mm=new THREE.MeshStandardMaterial({map:map,color:map?0xffffff:0xece6da,roughness:0.92,metalness:0,side:THREE.DoubleSide}); mm.wireframe=(mode==='wire'); o.material=mm; }}); }
+
+/* ---- UI ---- */
+function setRings(n){ NH=n; state.grid=null; state.nodeY=null; state.open=null; selected=null; ensureGrid(); buildShaderStrings(); resizeSU(); const el=document.getElementById('sel'); if(el)el.textContent='Tap a teal point to select it.'; rebuild(); }
+function makeStem(file){ return {file,j:Math.random()*0.6}; }
+function buildUI(){
+  const ab=document.getElementById('addBtns');
+  FLOWERS.forEach(f=>{ const b=document.createElement('button'); b.textContent='+ '+f.name; b.onclick=()=>{ state.stems.push(makeStem(f.file)); rebuild(); }; ab.appendChild(b); });
+  document.getElementById('clear').onclick=()=>{ state.stems=[]; rebuild(); };
+  const genN=n=>{ state.stems=[]; for(let i=0;i<n;i++)state.stems.push(makeStem(FLOWERS[i%2].file)); if(n>=12)state.stems.push(makeStem(FLOWERS[3].file)); rebuild(); };
+  document.getElementById('gen6').onclick=()=>genN(6); document.getElementById('gen12').onclick=()=>genN(12); document.getElementById('gen24').onclick=()=>genN(24);
+  const sl=(id,key)=>{ const e=document.getElementById(id),o=document.getElementById(id+'o'); const u=()=>{ state[key]=parseFloat(e.value); o.textContent=state[key].toFixed(2); }; e.oninput=()=>{ u(); rebuild(); }; u(); };
+  ['gatherY','fan','fsize','rise','rimMul'].forEach(k=>sl(k,k));
+  document.getElementById('mode').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; document.querySelectorAll('#mode button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); state.mode=parseInt(b.dataset.v,10); MASK.mode=state.mode; syncU(); });
+  document.getElementById('ringCount').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; document.querySelectorAll('#ringCount button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); setRings(parseInt(b.dataset.n,10)); });
+  document.getElementById('editShape').onchange=()=>buildDeleterViz();
+  document.getElementById('showCut').onchange=e=>{ state.showCut=e.target.checked; MASK.showCut=state.showCut; syncU(); };
+  document.getElementById('showDel').onchange=e=>{ if(delGroup)delGroup.visible=e.target.checked; };
+  document.getElementById('flWire').onchange=()=>rebuild();
+  document.getElementById('ghost').onchange=()=>rebuild();
+  document.getElementById('spin').onchange=e=>autoSpin=e.target.checked;
+  document.getElementById('wrapMode').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; document.querySelectorAll('#wrapMode button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); applyWrapMode(); });
+  document.getElementById('reset').onclick=()=>{ state.grid=coneGrid(); MASK.grid=state.grid; syncU(); buildDeleterViz(); showSel(); };
+  const ser=()=>JSON.stringify({NH:NH,NA:NA,grid:Array.from(state.grid),nodeY:Array.from(state.nodeY),open:Array.from(state.open),rimMul:state.rimMul});
+  const deser=s=>{ if(!s)return; if(s.NH&&s.NH!==NH){ NH=s.NH; buildShaderStrings(); resizeSU(); } state.grid=new Float32Array(s.grid); state.nodeY=new Float32Array(s.nodeY||[]); state.open=new Uint8Array(s.open||NH*NA); if(state.nodeY.length!==NH*NA||state.grid.length!==NH*NA){ state.grid=null; state.nodeY=null; state.open=null; ensureGrid(); } state.rimMul=s.rimMul||1; document.getElementById('rimMul').value=state.rimMul; selected=null; rebuild(); };
+  const freshCage=()=>{ state.grid=null; state.nodeY=null; state.open=null; ensureGrid(); state.rimMul=1; document.getElementById('rimMul').value=1; selected=null; document.getElementById('sel').textContent='Tap a teal point to select it.'; rebuild(); };
+  document.getElementById('save').onclick=()=>{ localStorage.setItem('lab_deleter_'+curWrap,ser()); if(curWrap==='natural')localStorage.setItem('lab_deleter',ser()); err('saved '+curWrap+' ✓'); setTimeout(()=>err(''),1500); };
+  document.getElementById('loadBtn').onclick=()=>{ try{ const s=JSON.parse(localStorage.getItem('lab_deleter_'+curWrap)||localStorage.getItem('lab_deleter')||'null'); if(s){deser(s); err('loaded ✓');} else err('no save'); setTimeout(()=>err(''),1500); }catch(e){ err('no save'); } };
+  document.getElementById('exportBtn').onclick=()=>{ prompt('Deleter sculpt JSON for "'+curWrap+'" (copy and send it to me):', ser()); };
+  document.getElementById('wrapPick').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; document.querySelectorAll('#wrapPick button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); curWrap=b.dataset.w;
+    let s=null; try{ s=JSON.parse(localStorage.getItem('lab_deleter_'+curWrap)||(curWrap==='natural'?localStorage.getItem('lab_deleter'):null)||'null'); }catch(e){}
+    if(s){ deser(s); } else { freshCage(); } });
+}
+
+if(location.protocol==='file:'){ document.body.innerHTML='<div style="padding:40px;font:16px Arial">Open at <b>http://localhost:8780/lab.html</b> (not the file).</div>'; }
+else { init(); buildUI(); document.getElementById('gen12').click(); }
+</script>
+</body>
+</html>
