@@ -309,9 +309,17 @@ const BACKDROPS={
 };
 const DEFAULT_SHOP={ name:'Atelier Bloom', backdrop:'cream', backdropCustom:null, backdropImage:null, bgDim:0, spotlight:true, brightness:1.04, warmth:0, ambient:0.95, lightAngle:0.9, shadow:0.32,
   frameOn:false, frameShape:'oval', frameColor:'#f3ece0', frameSize:0.7, frameOpacity:0.92, soundPool:['chime'], flowers:{} };
-let shop=DEFAULT_SHOP;
-try{ const s=JSON.parse(localStorage.getItem('bloom_shop')||'null'); if(s){ shop=Object.assign({},DEFAULT_SHOP,s,{flowers:Object.assign({},s.flowers||{})}); if(s.soundFx&&!s.soundPool)shop.soundPool=(s.soundFx==='off')?[]:[s.soundFx]; } }catch(e){}
+let _pubShop=null, _lsShop=null, shop;
+try{ _lsShop=JSON.parse(localStorage.getItem('bloom_shop')||'null'); }catch(e){}
+// precedence: defaults < published repo config (shop.json) < this device's local edits
+function mergeShop(){ shop=Object.assign({},DEFAULT_SHOP,_pubShop||{},_lsShop||{});
+  shop.flowers=Object.assign({},(_pubShop&&_pubShop.flowers)||{},(_lsShop&&_lsShop.flowers)||{});
+  const src=_lsShop||_pubShop; if(src&&src.soundFx&&!src.soundPool)shop.soundPool=(src.soundFx==='off')?[]:[src.soundFx]; }
+mergeShop();
 function saveShop(){ try{ localStorage.setItem('bloom_shop',JSON.stringify(shop)); }catch(e){} }
+// Published settings from the repo, so EVERY device/customer sees the owner's setup (background, lighting, etc.)
+fetch('shop.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(p=>{ if(!p)return; _pubShop=p; mergeShop();
+  try{ applyBackdrop(); applyLighting(); applyShadow(); applyFrame(); if(typeof buildFlowerChips==='function')buildFlowerChips(); }catch(e){} }).catch(()=>{});
 function flowerOn(id){ return shop.flowers[id]!==false; }
 function shade(hex,amt){ const c=new THREE.Color(hex); c.lerp(new THREE.Color(amt>0?0xffffff:0x000000),Math.abs(amt)); return '#'+c.getHexString(); }
 function downscaleImage(durl,maxDim,cb){ const im=new Image(); im.onload=()=>{ let w=im.width,h=im.height; const s=Math.min(1,maxDim/Math.max(w,h||1)); w=Math.max(1,Math.round(w*s)); h=Math.max(1,Math.round(h*s)); const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(im,0,0,w,h); try{ cb(c.toDataURL('image/jpeg',0.82)); }catch(e){ cb(durl); } }; im.onerror=()=>cb(durl); im.src=durl; }
@@ -968,7 +976,8 @@ function installOwner(){
   FLOWERS.forEach(f=>{ const l=document.createElement('label'); const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=flowerOn(f.id);
     cb.onchange=()=>{ shop.flowers[f.id]=cb.checked; saveShop(); buildFlowerChips(); }; l.appendChild(cb); l.appendChild(document.createTextNode(' '+f.name)); ff.appendChild(l); });
   document.getElementById('ownDone').onclick=()=>owner.classList.remove('on');
-  document.getElementById('ownExport').onclick=()=>prompt('Shop setup JSON (paste into the kiosk/phone build):', JSON.stringify(shop));
+  document.getElementById('ownExport').onclick=()=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(shop,null,2)); a.download='shop.json'; document.body.appendChild(a); a.click(); a.remove();
+    alert('Saved "shop.json".\n\n1) Put it in your site\'s MAIN folder (next to index.html).\n2) In GitHub Desktop: Commit, then Push.\n\nNow every device & customer sees these exact settings — background, lighting, frame, sounds, and which flowers are offered.'); };
   if(!ownerWired){ ownerWired=true;
     const stage=document.getElementById('stage'); let t=null,sx=0,sy=0;
     stage.addEventListener('pointerdown',e=>{ const r=stage.getBoundingClientRect(); sx=e.clientX; sy=e.clientY;
