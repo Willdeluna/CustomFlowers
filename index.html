@@ -236,6 +236,9 @@
   <div id="ownBackdrops"></div>
   <div class="ownSld"><span>Custom</span><input type="color" id="ownBdCustom"><button id="ownBdClear" style="border:none;background:none;color:var(--brand);font-size:11px;cursor:pointer">use preset</button></div>
   <div class="ownSld"><span>Image</span><input type="file" id="ownBdImg" accept="image/*" style="flex:1;font-size:11px;min-width:0"><button id="ownBdImgClear" style="border:none;background:none;color:var(--brand);font-size:11px;cursor:pointer">clear</button></div>
+  <button id="ownBdDownload" style="width:100%;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px;font-size:11.5px;cursor:pointer;margin:2px 0">⬇ Save uploaded image for /backgrounds</button>
+  <div class="lbl" style="font-size:10px;opacity:.65;margin-top:2px">Saved (from your repo's /backgrounds folder)</div>
+  <div id="ownBgList" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:2px"></div>
   <div class="ownSld"><span>Dim</span><input type="range" id="ownDim" min="0" max="0.8" step="0.02"></div>
   <label class="ownChk"><input type="checkbox" id="ownSpot"> Spotlight glow</label>
   <div class="lbl" style="margin-top:10px">Lighting &amp; shadow</div>
@@ -804,7 +807,10 @@ function setFlowerCount(id,n){
 }
 function clearBouquet(){ pushHistory(); state.stems=[]; selectedUid=null; showSel(); afterChange(); }
 // a magical chime (synthesised — no audio file): a bright ascending bell arpeggio with shimmer overtones
-let _ac=null;
+let _ac=null, _audioUnlocked=false;
+// iOS/Android need Web Audio "unlocked" inside a user gesture (a silent blip on first touch)
+function unlockAudio(){ if(_audioUnlocked)return; try{ _ac=_ac||new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume();
+  const b=_ac.createBuffer(1,1,22050), s=_ac.createBufferSource(); s.buffer=b; s.connect(_ac.destination); s.start(0); _audioUnlocked=true; }catch(e){} }
 function playSound(forceFx){
   const pool=(shop&&shop.soundPool)||['chime']; let fx=forceFx; if(!fx){ if(!pool.length)return; fx=pool[(Math.random()*pool.length)|0]; }
   try{
@@ -934,8 +940,15 @@ function installOwner(){
   const shd=document.getElementById('ownShadow'); shd.value=(shop.shadow!=null?shop.shadow:0.32); shd.oninput=()=>{ shop.shadow=parseFloat(shd.value); applyShadow(); saveShop(); };
   const amb=document.getElementById('ownAmb'); amb.value=(shop.ambient!=null?shop.ambient:0.95); amb.oninput=()=>{ shop.ambient=parseFloat(amb.value); applyLighting(); saveShop(); };
   const ang=document.getElementById('ownAngle'); ang.value=(shop.lightAngle!=null?shop.lightAngle:0.9); ang.oninput=()=>{ shop.lightAngle=parseFloat(ang.value); applyLighting(); saveShop(); };
-  const fi=document.getElementById('ownBdImg'); fi.onchange=()=>{ const f=fi.files&&fi.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=()=>downscaleImage(rd.result,1280,d=>{ shop.backdropImage=d; applyBackdrop(); try{saveShop();}catch(e){} }); rd.readAsDataURL(f); };
+  let lastBgName='background.jpg';
+  const fi=document.getElementById('ownBdImg'); fi.onchange=()=>{ const f=fi.files&&fi.files[0]; if(!f)return; lastBgName=((f.name||'background').replace(/\.[^.]+$/,'').replace(/[^a-z0-9_-]+/gi,'-').toLowerCase()||'background')+'.jpg'; const rd=new FileReader(); rd.onload=()=>downscaleImage(rd.result,1280,d=>{ shop.backdropImage=d; applyBackdrop(); try{saveShop();}catch(e){} }); rd.readAsDataURL(f); };
   document.getElementById('ownBdImgClear').onclick=()=>{ shop.backdropImage=null; applyBackdrop(); saveShop(); fi.value=''; };
+  document.getElementById('ownBdDownload').onclick=()=>{ const img=shop.backdropImage; if(!img||img.indexOf('data:')!==0){ alert('Upload an image first with the Image button above.'); return; }
+    const a=document.createElement('a'); a.href=img; a.download=lastBgName; document.body.appendChild(a); a.click(); a.remove();
+    try{ prompt('Saved "'+lastBgName+'". Put it in your repo\'s /backgrounds folder, then add this line to backgrounds/list.json:', '{ "file": "'+lastBgName+'", "name": "'+lastBgName.replace(/\.jpg$/,'')+'" }'); }catch(e){} };
+  (function(){ const c=document.getElementById('ownBgList'); if(!c)return; c.innerHTML='';
+    fetch('backgrounds/list.json').then(r=>r.ok?r.json():[]).then(list=>{ (list||[]).forEach(b=>{ const btn=document.createElement('button'); btn.className='ownSh'; btn.style.flex='0 0 auto'; btn.textContent=b.name||b.file;
+      btn.onclick=()=>{ shop.backdropImage='backgrounds/'+b.file; applyBackdrop(); saveShop(); }; c.appendChild(btn); }); }).catch(()=>{}); })();
   const dm=document.getElementById('ownDim'); dm.value=(shop.bgDim||0); dm.oninput=()=>{ shop.bgDim=parseFloat(dm.value); applyBackdrop(); saveShop(); };
   const frChk=document.getElementById('ownFrame'); frChk.checked=!!shop.frameOn; frChk.onchange=()=>{ shop.frameOn=frChk.checked; applyFrame(); saveShop(); };
   document.getElementById('ownFrameShape').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; shop.frameShape=b.dataset.s; document.querySelectorAll('#ownFrameShape .ownSh').forEach(x=>x.classList.toggle('on',x.dataset.s===shop.frameShape)); applyFrame(); saveShop(); });
@@ -1126,6 +1139,7 @@ if(location.protocol==='file:'){
     '</div></div>';
 }else{
   initThree();
+  ['pointerdown','touchstart','click'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true}));   // unlock mobile audio on first touch
   initThumb();
   const restored=loadState();          // bring back the saved design (wrapper, flowers, sizes)
   buildUI();
