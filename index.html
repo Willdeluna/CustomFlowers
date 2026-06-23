@@ -237,7 +237,7 @@
   <div class="ownSld"><span>Custom</span><input type="color" id="ownBdCustom"><button id="ownBdClear" style="border:none;background:none;color:var(--brand);font-size:11px;cursor:pointer">use preset</button></div>
   <div class="ownSld"><span>Image</span><input type="file" id="ownBdImg" accept="image/*" style="flex:1;font-size:11px;min-width:0"><button id="ownBdImgClear" style="border:none;background:none;color:var(--brand);font-size:11px;cursor:pointer">clear</button></div>
   <button id="ownBdDownload" style="width:100%;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px;font-size:11.5px;cursor:pointer;margin:2px 0">⬇ Save uploaded image for /backgrounds</button>
-  <div class="lbl" style="font-size:10px;opacity:.65;margin-top:2px">Saved (from your repo's /backgrounds folder)</div>
+  <div class="lbl" style="font-size:10px;opacity:.65;margin-top:2px">Saved backgrounds (tap to use)</div>
   <div id="ownBgList" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:2px"></div>
   <div class="ownSld"><span>Dim</span><input type="range" id="ownDim" min="0" max="0.8" step="0.02"></div>
   <label class="ownChk"><input type="checkbox" id="ownSpot"> Spotlight glow</label>
@@ -815,7 +815,8 @@ function playSound(forceFx){
   const pool=(shop&&shop.soundPool)||['chime']; let fx=forceFx; if(!fx){ if(!pool.length)return; fx=pool[(Math.random()*pool.length)|0]; }
   try{
     _ac=_ac||new (window.AudioContext||window.webkitAudioContext)(); const ctx=_ac; if(ctx.state==='suspended')ctx.resume();
-    const now=ctx.currentTime, out=ctx.createGain(); out.gain.value=0.5; out.connect(ctx.destination);
+    if(ctx.resume)ctx.resume();
+    const now=ctx.currentTime+0.06, out=ctx.createGain(); out.gain.value=0.85; out.connect(ctx.destination);
     // a harp pluck: sawtooth through a low-pass that closes as it decays
     const pluck=(f,tt,dur,amp)=>{ const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
       const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.8;
@@ -943,12 +944,14 @@ function installOwner(){
   let lastBgName='background.jpg';
   const fi=document.getElementById('ownBdImg'); fi.onchange=()=>{ const f=fi.files&&fi.files[0]; if(!f)return; lastBgName=((f.name||'background').replace(/\.[^.]+$/,'').replace(/[^a-z0-9_-]+/gi,'-').toLowerCase()||'background')+'.jpg'; const rd=new FileReader(); rd.onload=()=>downscaleImage(rd.result,1280,d=>{ shop.backdropImage=d; applyBackdrop(); try{saveShop();}catch(e){} }); rd.readAsDataURL(f); };
   document.getElementById('ownBdImgClear').onclick=()=>{ shop.backdropImage=null; applyBackdrop(); saveShop(); fi.value=''; };
-  document.getElementById('ownBdDownload').onclick=()=>{ const img=shop.backdropImage; if(!img||img.indexOf('data:')!==0){ alert('Upload an image first with the Image button above.'); return; }
-    const a=document.createElement('a'); a.href=img; a.download=lastBgName; document.body.appendChild(a); a.click(); a.remove();
-    try{ prompt('Saved "'+lastBgName+'". Put it in your repo\'s /backgrounds folder, then add this line to backgrounds/list.json:', '{ "file": "'+lastBgName+'", "name": "'+lastBgName.replace(/\.jpg$/,'')+'" }'); }catch(e){} };
+  document.getElementById('ownBdDownload').onclick=()=>{ const img=shop.backdropImage; if(!img||img.indexOf('data:')!==0){ alert('Upload a photo first with the Image button above.'); return; }
+    const a=document.createElement('a'); a.href=img; a.download='background-1.jpg'; document.body.appendChild(a); a.click(); a.remove();
+    alert('Saved "background-1.jpg".\n\n1) Put it in your site\'s "backgrounds" folder.\n2) If background-1 already exists, rename this to background-2.jpg (up to 8).\n3) In GitHub Desktop: Commit, then Push.\n\nIt shows up automatically — nothing to edit.'); };
   (function(){ const c=document.getElementById('ownBgList'); if(!c)return; c.innerHTML='';
-    fetch('backgrounds/list.json').then(r=>r.ok?r.json():[]).then(list=>{ (list||[]).forEach(b=>{ const btn=document.createElement('button'); btn.className='ownSh'; btn.style.flex='0 0 auto'; btn.textContent=b.name||b.file;
-      btn.onclick=()=>{ shop.backdropImage='backgrounds/'+b.file; applyBackdrop(); saveShop(); }; c.appendChild(btn); }); }).catch(()=>{}); })();
+    for(let i=1;i<=8;i++){ (function(n){ const url='backgrounds/background-'+n+'.jpg', im=new Image();
+      im.onload=()=>{ const btn=document.createElement('button'); btn.title='Background '+n; btn.style.cssText='width:50px;height:34px;border-radius:7px;border:1px solid var(--line);cursor:pointer;flex:0 0 auto;background:url("'+url+'") center/cover';
+        btn.onclick=()=>{ shop.backdropImage=url; applyBackdrop(); saveShop(); }; c.appendChild(btn); };
+      im.src=url; })(i); } })();
   const dm=document.getElementById('ownDim'); dm.value=(shop.bgDim||0); dm.oninput=()=>{ shop.bgDim=parseFloat(dm.value); applyBackdrop(); saveShop(); };
   const frChk=document.getElementById('ownFrame'); frChk.checked=!!shop.frameOn; frChk.onchange=()=>{ shop.frameOn=frChk.checked; applyFrame(); saveShop(); };
   document.getElementById('ownFrameShape').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; shop.frameShape=b.dataset.s; document.querySelectorAll('#ownFrameShape .ownSh').forEach(x=>x.classList.toggle('on',x.dataset.s===shop.frameShape)); applyFrame(); saveShop(); });
