@@ -257,6 +257,12 @@
   <div id="ownSound" style="display:flex;gap:4px;flex-wrap:wrap"><button data-fx="off" class="ownSh">Off</button><button data-fx="chime" class="ownSh">Chimes</button><button data-fx="harp" class="ownSh">Harp ↑</button><button data-fx="harpdown" class="ownSh">Harp ↓</button><button data-fx="harproll" class="ownSh">Harp chord</button><button data-fx="musicbox" class="ownSh">Music box</button></div>
   <div class="lbl" style="margin-top:12px">Flowers offered to customers</div>
   <div id="ownFlowers"></div>
+  <div class="lbl" style="margin-top:12px">Publish to site <span style="opacity:.6">— updates all devices</span></div>
+  <input id="ghRepo" placeholder="your-username/your-repo" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:7px;font-size:12px;margin:3px 0">
+  <input id="ghToken" type="password" placeholder="GitHub token (Contents: write)" autocomplete="off" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:7px;font-size:12px;margin:3px 0">
+  <div style="display:flex;gap:6px"><button id="ghPublish" class="ownSh" style="flex:1">⭐ Publish background</button><button id="ghPublishAll" class="ownSh" style="flex:1">Publish all settings</button></div>
+  <div id="ghStatus" style="font-size:11px;opacity:.85;margin:4px 0;min-height:14px"></div>
+  <div style="font-size:10px;opacity:.6">One-time: make a fine-grained token at github.com → Settings → Developer settings → Fine-grained tokens, with <b>Contents: Read &amp; write</b> on this repo. It stays only on this device — never published.</div>
   <div class="ownActs"><button id="ownExport">Export setup</button><button id="ownDone">Done</button></div>
 </div></div>
 
@@ -319,7 +325,7 @@ mergeShop();
 function saveShop(){ try{ localStorage.setItem('bloom_shop',JSON.stringify(shop)); }catch(e){} }
 // Published settings from the repo, so EVERY device/customer sees the owner's setup (background, lighting, etc.)
 fetch('shop.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(p=>{ if(!p)return; _pubShop=p; mergeShop();
-  try{ applyBackdrop(); applyLighting(); applyShadow(); applyFrame(); if(typeof buildFlowerChips==='function')buildFlowerChips(); }catch(e){} }).catch(()=>{});
+  try{ applyBackdrop(); applyLighting(); applyShadow(); applyFrame(); autoBackground(); if(typeof buildFlowerChips==='function')buildFlowerChips(); }catch(e){} }).catch(()=>{});
 function flowerOn(id){ return shop.flowers[id]!==false; }
 function shade(hex,amt){ const c=new THREE.Color(hex); c.lerp(new THREE.Color(amt>0?0xffffff:0x000000),Math.abs(amt)); return '#'+c.getHexString(); }
 function downscaleImage(durl,maxDim,cb){ const im=new Image(); im.onload=()=>{ let w=im.width,h=im.height; const s=Math.min(1,maxDim/Math.max(w,h||1)); w=Math.max(1,Math.round(w*s)); h=Math.max(1,Math.round(h*s)); const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(im,0,0,w,h); try{ cb(c.toDataURL('image/jpeg',0.82)); }catch(e){ cb(durl); } }; im.onerror=()=>cb(durl); im.src=durl; }
@@ -332,6 +338,27 @@ function applyBackdrop(){ const st=document.getElementById('stage'); if(!st)retu
   else base=BACKDROPS[shop.backdrop]||BACKDROPS.cream;
   layers.push(base);
   st.style.background=layers.join(', '); }
+// If backgrounds/background-1.jpg exists and the owner hasn't chosen another backdrop, use it on EVERY device — no setup needed
+function autoBackground(){ if(shop.backdropImage||shop.backdropCustom||(shop.backdrop&&shop.backdrop!=='cream'))return;
+  const url='backgrounds/background-1.jpg', im=new Image();
+  im.onload=()=>{ if(!shop.backdropImage&&!shop.backdropCustom&&(!shop.backdrop||shop.backdrop==='cream')){ shop.backdropImage=url; applyBackdrop(); } };
+  im.src=url; }
+// ---- In-app publishing to GitHub (owner only; token stays in this browser, never in shop.json) ----
+function ghCfg(){ try{ return JSON.parse(localStorage.getItem('bloom_gh')||'{}'); }catch(e){ return {}; } }
+function ghSave(c){ try{ localStorage.setItem('bloom_gh',JSON.stringify(c)); }catch(e){} }
+function guessRepo(){ try{ const h=location.hostname, p=location.pathname.split('/').filter(Boolean); if(h.indexOf('github.io')>=0){ const u=h.split('.')[0], r=p[0]||''; if(u&&r)return u+'/'+r; } }catch(e){} return ''; }
+function b64utf8(str){ return btoa(unescape(encodeURIComponent(str))); }
+async function ghPut(path,b64,message){ const c=ghCfg(), repo=(c.repo||'').trim(), token=(c.token||'').trim(), branch=(c.branch||'main').trim();
+  if(!repo||repo.indexOf('/')<0) throw new Error('Enter your repo as user/name.'); if(!token) throw new Error('Enter your GitHub token.');
+  const api='https://api.github.com/repos/'+repo+'/contents/'+path, hdr={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'};
+  let sha; try{ const g=await fetch(api+'?ref='+encodeURIComponent(branch),{headers:hdr}); if(g.ok)sha=(await g.json()).sha; }catch(e){}
+  const body={message,content:b64,branch}; if(sha)body.sha=sha;
+  const r=await fetch(api,{method:'PUT',headers:hdr,body:JSON.stringify(body)});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.message||('HTTP '+r.status)); } return true; }
+async function publishBackground(s){ try{ const img=shop.backdropImage; if(!img||img.indexOf('data:')!==0){ s.textContent='Upload a photo first (Image button above), then Publish.'; return; }
+  s.textContent='Publishing background…'; await ghPut('backgrounds/background-1.jpg', img.substring(img.indexOf(',')+1), 'Update background');
+  shop.backdropImage='backgrounds/background-1.jpg'; applyBackdrop(); saveShop(); s.textContent='✓ Published! Shows on all devices within ~1 min (hard-refresh if an old one lingers).'; }catch(e){ s.textContent='Failed: '+e.message; } }
+async function publishSettings(s){ try{ s.textContent='Publishing settings…'; await ghPut('shop.json', b64utf8(JSON.stringify(shop,null,2)), 'Update shop settings'); s.textContent='✓ Settings published! Live within ~1 min.'; }catch(e){ s.textContent='Failed: '+e.message; } }
 function applyLighting(){ if(typeof renderer!=='undefined'&&renderer)renderer.toneMappingExposure=(shop.brightness!=null?shop.brightness:1.04);
   const w=shop.warmth||0, n=new THREE.Color(0xffffff);
   const col=(w>=0)?n.clone().lerp(new THREE.Color(0xffe6c8),w):n.clone().lerp(new THREE.Color(0xdbe8ff),-w);
@@ -978,6 +1005,13 @@ function installOwner(){
   document.getElementById('ownDone').onclick=()=>owner.classList.remove('on');
   document.getElementById('ownExport').onclick=()=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(shop,null,2)); a.download='shop.json'; document.body.appendChild(a); a.click(); a.remove();
     alert('Saved "shop.json".\n\n1) Put it in your site\'s MAIN folder (next to index.html).\n2) In GitHub Desktop: Commit, then Push.\n\nNow every device & customer sees these exact settings — background, lighting, frame, sounds, and which flowers are offered.'); };
+  const ghc=ghCfg();
+  const ghR=document.getElementById('ghRepo'); ghR.value=ghc.repo||guessRepo(); if(!ghc.repo&&ghR.value){ const c=ghCfg(); c.repo=ghR.value; ghSave(c); }
+  ghR.oninput=()=>{ const c=ghCfg(); c.repo=ghR.value.trim(); ghSave(c); };
+  const ghT=document.getElementById('ghToken'); ghT.value=ghc.token||''; ghT.oninput=()=>{ const c=ghCfg(); c.token=ghT.value.trim(); ghSave(c); };
+  const ghS=document.getElementById('ghStatus');
+  document.getElementById('ghPublish').onclick=()=>publishBackground(ghS);
+  document.getElementById('ghPublishAll').onclick=()=>publishSettings(ghS);
   if(!ownerWired){ ownerWired=true;
     const stage=document.getElementById('stage'); let t=null,sx=0,sy=0;
     stage.addEventListener('pointerdown',e=>{ const r=stage.getBoundingClientRect(); sx=e.clientX; sy=e.clientY;
@@ -1155,6 +1189,7 @@ if(location.protocol==='file:'){
   initThumb();
   const restored=loadState();          // bring back the saved design (wrapper, flowers, sizes)
   buildUI();
+  autoBackground();
   if(restored){ updatePrice(); updateCounts(); rebuild(); }
   else generate();                     // first visit → a ready-made bouquet
   loadThumbs();  // fill the chips with real pictures (async); flowers that fail stay a colour swatch
